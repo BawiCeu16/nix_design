@@ -33,6 +33,7 @@ export 'src/widgets/navigation/nix_tab_bar.dart';
 
 // Surfaces & Cards
 export 'src/widgets/surfaces/nix_card.dart';
+export 'src/widgets/surfaces/nix_expandable.dart';
 
 // Feedback & Overlays
 export 'src/widgets/feedback/nix_custom_popup.dart';
@@ -45,4 +46,5 @@ export 'src/widgets/lists/nix_list_item.dart';
 export 'src/widgets/lists/nix_list_physics.dart';
 export 'src/widgets/lists/nix_list_view.dart';
 export 'src/widgets/lists/nix_swipe_action.dart';
+export 'src/widgets/lists/nix_switch_tile.dart';
 

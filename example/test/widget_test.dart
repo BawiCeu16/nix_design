@@ -110,6 +110,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('NixButton Variants & Morphing'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('Segmented Switch Tiles'), 200);
+    expect(find.text('Segmented Switch Tiles'), findsOneWidget);
+    expect(find.byType(NixSwitchTile), findsWidgets);
+    expect(find.text('Wi-Fi Network'), findsOneWidget);
+
+    // Tap Wi-Fi tile to toggle
+    await tester.tap(find.text('Wi-Fi Network'));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Search actionbutton opens search bottom sheet and navigates to selected component', (tester) async {
@@ -194,5 +203,146 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Home'), findsOneWidget); // Text label restored
     expect(find.byIcon(Icons.home_rounded), findsNothing); // Icon is hidden in text only mode
+  });
+
+  testWidgets('Renders NixExpandable update and switch tile showcases in Widgets tab', (tester) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const ExampleApp());
+    await tester.pumpAndSettle();
+
+    // Scroll to Widgets tab
+    await tester.tap(find.text('Widgets'));
+    await tester.pumpAndSettle();
+
+    // Scroll down to Single Switch Tile and Expandable showcases
+    await tester.scrollUntilVisible(find.text('Fast Charging'), 200);
+    expect(find.text('Single Switch Tile (Pilled Corner Radius)'), findsOneWidget);
+    expect(find.text('Fast Charging'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('Software Update'), 150);
+    // Drag upwards so Software Update is clearly centered and not behind the floating bottom bar
+    await tester.drag(find.byType(ListView), const Offset(0, -250));
+    await tester.pumpAndSettle();
+
+    expect(find.text('App Update Expandable (NixExpandable.update)'), findsOneWidget);
+    expect(find.text('Software Update'), findsOneWidget);
+    expect(find.text('v2.5.0'), findsWidgets);
+    expect(find.text('RECOMMENDED'), findsOneWidget);
+
+    // Expand the update tile
+    await tester.tap(find.text('Software Update'));
+    await tester.pumpAndSettle();
+
+    // Scroll down to view expanded update content
+    await tester.scrollUntilVisible(find.text("What's New"), 150);
+    expect(find.text("What's New"), findsOneWidget);
+    expect(find.text('Build 148'), findsOneWidget);
+    expect(find.text('Nov 11, 2026'), findsOneWidget);
+    expect(find.text('42.5 MB'), findsOneWidget);
+    expect(find.text('Automatic Updates'), findsOneWidget);
+    expect(find.text('Update Now'), findsOneWidget);
+    expect(find.textContaining('Arbitrary custom widget: Package integrity verified'), findsOneWidget);
+
+    // Test Expandable Switch Tile
+    await tester.scrollUntilVisible(find.text('Nix Secure VPN'), 150);
+    await tester.drag(find.byType(ListView), const Offset(0, -200));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nix Secure VPN'), findsOneWidget);
+    // Tapping the switch turns it on and auto-expands the card
+    await tester.tap(find.text('Nix Secure VPN'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Connected Server: Frankfurt 04'), findsOneWidget);
+  });
+
+  testWidgets('Version History native bottom sheet renders versions 1 to 9 with Single & Multi expand toggles', (tester) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const ExampleApp());
+    await tester.pumpAndSettle();
+
+    // Navigate to Widgets tab
+    await tester.tap(find.text('Widgets'));
+    await tester.pumpAndSettle();
+
+    // Scroll to the Native Sheet showcase card
+    await tester.scrollUntilVisible(find.text('Native Sheet: Releases v1 to v9'), 150);
+    await tester.drag(find.byType(ListView), const Offset(0, -200));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Native Sheet (Versions 1 to 9)'), findsOneWidget);
+
+    // Tap to open native Flutter modal bottom sheet
+    await tester.tap(find.text('Open Native Sheet (Versions 1 to 9)'));
+    await tester.pumpAndSettle();
+
+    // Verify sheet title and versions header
+    expect(find.text('Version History'), findsOneWidget);
+    expect(find.text('Releases 1 to 9 • Software Changelog'), findsOneWidget);
+
+    // Verify versions 9, 8, 7, etc. exist in the sheet
+    expect(find.text('Nix Design System 9.0'), findsOneWidget);
+    expect(find.text('Navigation Architecture'), findsOneWidget);
+
+    // Initial state: Single Expand mode with Version 9.0 expanded
+    expect(find.text('Single Expand'), findsOneWidget);
+    expect(find.text('Single'), findsOneWidget);
+    expect(find.text('Multi'), findsOneWidget);
+    expect(find.text('Dual expansion modes: Single accordion and multi-expand disclosure'), findsOneWidget);
+
+    // In Single Expand mode: Tap Version 8.0.0
+    await tester.tap(find.text('Navigation Architecture'));
+    await tester.pumpAndSettle();
+
+    // Version 8 should now be open, and Version 9 should be closed
+    expect(find.text('NixBottomBar: Separated floating action button with dynamic alignment'), findsOneWidget);
+    // Version 9 fixes should be closed (sizeFactor = 0)
+    final v9Finder = find.byKey(const ValueKey('version_9.0.0'));
+    final v9SizeTransition = tester.widget<SizeTransition>(
+      find.descendant(of: v9Finder, matching: find.byType(SizeTransition)),
+    );
+    expect(v9SizeTransition.sizeFactor.value, equals(0.0));
+
+    // Toggle to Multi Expand mode
+    await tester.tap(find.text('Multi'));
+    await tester.pumpAndSettle();
+
+    // In Multi Expand mode: Tap Version 9.0.0 again to expand it as well
+    await tester.tap(find.text('Nix Design System 9.0'));
+    await tester.pumpAndSettle();
+
+    // Both Version 8 and Version 9 should now be open simultaneously
+    expect(v9SizeTransition.sizeFactor.value, equals(1.0));
+    final v8Finder = find.byKey(const ValueKey('version_8.0.0'));
+    final v8SizeTransition = tester.widget<SizeTransition>(
+      find.descendant(of: v8Finder, matching: find.byType(SizeTransition)),
+    );
+    expect(v8SizeTransition.sizeFactor.value, equals(1.0));
+
+    // Tap Collapse All
+    expect(find.text('Collapse All'), findsOneWidget);
+    await tester.tap(find.text('Collapse All'));
+    await tester.pumpAndSettle();
+    expect(v9SizeTransition.sizeFactor.value, equals(0.0));
+    expect(v8SizeTransition.sizeFactor.value, equals(0.0));
+
+    // Tap Expand All
+    expect(find.text('Expand All'), findsOneWidget);
+    await tester.tap(find.text('Expand All'));
+    await tester.pumpAndSettle();
+    expect(v9SizeTransition.sizeFactor.value, equals(1.0));
+    expect(v8SizeTransition.sizeFactor.value, equals(1.0));
+
+    // Close the bottom sheet via close button
+    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Releases 1 to 9 • Software Changelog'), findsNothing);
   });
 }

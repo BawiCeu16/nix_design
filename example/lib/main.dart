@@ -87,6 +87,19 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
     return allItems.take(_navBarItemCount).toList();
   }
 
+  // NixSwitchTile state
+  bool _wifiEnabled = true;
+  bool _bluetoothEnabled = true;
+  bool _airplaneMode = false;
+  bool _notificationsEnabled = true;
+  bool _standaloneSwitch = true;
+
+  // NixExpandable & App Update state
+  bool _autoUpdateEnabled = true;
+  bool _isUpdatingApp = false;
+  double? _updateProgress;
+  bool _vpnExpandedTile = false;
+
   // NixListView state
   bool _isSelectionMode = false;
   Set<int> _selectedTrackIndices = {};
@@ -150,6 +163,16 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           NixSnackBar.show(context, message: 'Navigated to $componentName');
         },
       ),
+    );
+  }
+
+  void _openVersionHistorySheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => const _NixVersionHistorySheet(),
     );
   }
 
@@ -569,6 +592,255 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                 ],
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Segmented Switch Tiles (NixSwitchList & NixSwitchTile)
+        Text(
+          'Segmented Switch Tiles',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        NixSwitchList(
+          padding: EdgeInsets.zero,
+          children: [
+            NixSwitchTile(
+              leading: const Icon(Icons.wifi_rounded),
+              title: const Text('Wi-Fi Network'),
+              subtitle: const Text('Connected to NixDesign-5G'),
+              value: _wifiEnabled,
+              onChanged: (val) => setState(() => _wifiEnabled = val),
+            ),
+            NixSwitchTile(
+              leading: const Icon(Icons.bluetooth_rounded),
+              title: const Text('Bluetooth'),
+              subtitle: const Text('2 paired devices active'),
+              value: _bluetoothEnabled,
+              onChanged: (val) => setState(() => _bluetoothEnabled = val),
+            ),
+            NixSwitchTile(
+              leading: const Icon(Icons.airplanemode_active_rounded),
+              title: const Text('Airplane Mode'),
+              subtitle: const Text('Disable all radio signals'),
+              value: _airplaneMode,
+              onChanged: (val) => setState(() => _airplaneMode = val),
+            ),
+            NixSwitchTile(
+              leading: const Icon(Icons.notifications_active_rounded),
+              title: const Text('Push Notifications'),
+              subtitle: const Text('Receive alerts and activity updates'),
+              value: _notificationsEnabled,
+              onChanged: (val) => setState(() => _notificationsEnabled = val),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Single Switch Tile with Pilled Corners
+        Text(
+          'Single Switch Tile (Pilled Corner Radius)',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        NixSwitchTile(
+          leading: const Icon(Icons.bolt_rounded),
+          title: const Text('Fast Charging'),
+          value: _standaloneSwitch,
+          onChanged: (val) => setState(() => _standaloneSwitch = val),
+        ),
+        const SizedBox(height: 16),
+
+        // App Update Expandable (NixExpandable.update)
+        Text(
+          'App Update Expandable (NixExpandable.update)',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        NixExpandable.update(
+          version: '2.5.0',
+          currentVersion: '2.4.2',
+          buildNumber: '148',
+          releaseDate: 'Nov 11, 2026',
+          fileSize: '42.5 MB',
+          badgeText: 'RECOMMENDED',
+          fixes: const [
+            'NixSwitchTile: Segmented switch tiles with pilled corner radius when single',
+            'NixExpandable: Expandable switch tiles with smooth height disclosure',
+            'NixExpandable.update(): App update card with version, fixes & custom widgets',
+            'Dynamic navigation bar child-adaptive width and bottom-right action button',
+          ],
+          autoUpdate: _autoUpdateEnabled,
+          onAutoUpdateChanged: (val) =>
+              setState(() => _autoUpdateEnabled = val),
+          isUpdating: _isUpdatingApp,
+          progress: _updateProgress,
+          onUpdate: () async {
+            setState(() {
+              _isUpdatingApp = true;
+              _updateProgress = 0.0;
+            });
+            for (int i = 1; i <= 10; i++) {
+              await Future.delayed(const Duration(milliseconds: 150));
+              if (mounted) {
+                setState(() => _updateProgress = i / 10);
+              }
+            }
+            if (mounted) {
+              setState(() {
+                _isUpdatingApp = false;
+                _updateProgress = null;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('App updated to v2.5.0 successfully!'),
+                ),
+              );
+            }
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12.0),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.verified_user_rounded,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Arbitrary custom widget: Package integrity verified with SHA-256 cryptographic signature.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              NixButton.outlined(
+                onPressed: _openVersionHistorySheet,
+                label: const Text('View All Releases (v1 to v9 Sheet)'),
+                icon: const Icon(Icons.history_rounded, size: 16),
+                size: NixSize.small,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Native Bottom Sheet Showcase (Versions 1 to 9 with Single/Multi Expand)
+        NixCard(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary
+                          .withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.history_edu_rounded,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Native Sheet: Releases v1 to v9',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          'Flutter native sheet with NixExpandable & Single/Multi toggles',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              NixButton.tonal(
+                onPressed: _openVersionHistorySheet,
+                label: const Text('Open Native Sheet (Versions 1 to 9)'),
+                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                isExpanded: true,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Expandable Switch Tile (NixExpandable.switchTile)
+        Text(
+          'Expandable Switch Tile (NixExpandable.switchTile)',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        NixExpandable.switchTile(
+          leading: const Icon(Icons.vpn_lock_rounded),
+          title: const Text('Nix Secure VPN'),
+          subtitle: const Text('Turn on to reveal encrypted tunnel details'),
+          switchValue: _vpnExpandedTile,
+          expandOnSwitch: true,
+          onSwitchChanged: (val) => setState(() => _vpnExpandedTile = val),
+          child: Container(
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(12.0),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Connected Server: Frankfurt 04 (Ultra-Low Latency)',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Protocol: WireGuard • Port: 51820 • Cipher: ChaCha20-Poly1305',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -1361,7 +1633,9 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                 label: const Text('Icon & Text'),
                 selected: _navBarContentType == 'icon_text',
                 onSelected: (selected) {
-                  if (selected) setState(() => _navBarContentType = 'icon_text');
+                  if (selected) {
+                    setState(() => _navBarContentType = 'icon_text');
+                  }
                 },
               ),
               const SizedBox(width: 8),
@@ -1369,7 +1643,9 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                 label: const Text('Icon Only'),
                 selected: _navBarContentType == 'icon_only',
                 onSelected: (selected) {
-                  if (selected) setState(() => _navBarContentType = 'icon_only');
+                  if (selected) {
+                    setState(() => _navBarContentType = 'icon_only');
+                  }
                 },
               ),
               const SizedBox(width: 8),
@@ -1377,7 +1653,9 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                 label: const Text('Text Only'),
                 selected: _navBarContentType == 'text_only',
                 onSelected: (selected) {
-                  if (selected) setState(() => _navBarContentType = 'text_only');
+                  if (selected) {
+                    setState(() => _navBarContentType = 'text_only');
+                  }
                 },
               ),
             ],
@@ -1523,6 +1801,13 @@ class _NixSearchSheetState extends State<_NixSearchSheet> {
       tabIndex: 1,
       icon: Icons.toggle_on_rounded,
       desc: 'Animated track & thumb colors, 48x48 tap target',
+    ),
+    (
+      name: 'NixSwitchTile',
+      category: 'Widgets',
+      tabIndex: 1,
+      icon: Icons.splitscreen_rounded,
+      desc: 'Segmented switch list tiles with 16px container and native ink splash',
     ),
     (
       name: 'NixSegmentedControl',
@@ -1731,6 +2016,365 @@ class _NixSearchSheetState extends State<_NixSearchSheet> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// VERSION HISTORY BOTTOM SHEET (VERSIONS 1 TO 9)
+// -----------------------------------------------------------------------------
+class _NixVersionHistorySheet extends StatefulWidget {
+  const _NixVersionHistorySheet();
+
+  @override
+  State<_NixVersionHistorySheet> createState() =>
+      _NixVersionHistorySheetState();
+}
+
+class _NixVersionHistorySheetState extends State<_NixVersionHistorySheet> {
+  bool _multiExpand = false;
+  Set<int> _expandedIndices = {0}; // Version 9 open initially
+
+  final List<
+    ({
+      String version,
+      String title,
+      String? badge,
+      String releaseDate,
+      String buildNumber,
+      String fileSize,
+      List<String> fixes,
+    })
+  >
+  _versions = const [
+    (
+      version: '9.0.0',
+      title: 'Nix Design System 9.0',
+      badge: 'LATEST',
+      releaseDate: 'Nov 11, 2026',
+      buildNumber: '940',
+      fileSize: '48.2 MB',
+      fixes: [
+        'NixExpandable: Native expandable surfaces with zero shape distortion',
+        'NixSwitchTile: Segmented switch tiles with pilled corner radius when single',
+        'Dual expansion modes: Single accordion and multi-expand disclosure',
+      ],
+    ),
+    (
+      version: '8.0.0',
+      title: 'Navigation Architecture',
+      badge: 'STABLE',
+      releaseDate: 'Oct 28, 2026',
+      buildNumber: '812',
+      fileSize: '45.1 MB',
+      fixes: [
+        'NixBottomBar: Separated floating action button with dynamic alignment',
+        'Adaptive child sizing for icon-only, text-only, and combined layouts',
+        'Interactive bottom bar playground configuration panel',
+      ],
+    ),
+    (
+      version: '7.0.0',
+      title: 'List Physics & Gestures',
+      badge: null,
+      releaseDate: 'Oct 14, 2026',
+      buildNumber: '730',
+      fileSize: '41.8 MB',
+      fixes: [
+        'Gmail-style full-swipe action gestures with responsive icon springs',
+        'Dual trigger modes: action buttons and dismiss thresholds',
+        'Native InkWell ripple splash support across all list items',
+      ],
+    ),
+    (
+      version: '6.0.0',
+      title: 'Segmented Corner Morphs',
+      badge: 'LTS',
+      releaseDate: 'Sep 29, 2026',
+      buildNumber: '625',
+      fileSize: '38.4 MB',
+      fixes: [
+        'Dynamic segmented corner morphing for multi-item selection groups',
+        'Neighbor item sealing when playing audio tracks',
+        'Custom drag handles and whole-item long-press reorder triggers',
+      ],
+    ),
+    (
+      version: '5.0.0',
+      title: 'Popup Menu System',
+      badge: null,
+      releaseDate: 'Sep 12, 2026',
+      buildNumber: '518',
+      fileSize: '35.0 MB',
+      fixes: [
+        'Dual-gesture popup menu with hold-drag-release & tap trigger modes',
+        'Universal item support: icons, chips, and custom widgets',
+        'Imperative showNixPopupMenu API with future return values',
+      ],
+    ),
+    (
+      version: '4.0.0',
+      title: 'Feedback & Snackbars',
+      badge: null,
+      releaseDate: 'Aug 24, 2026',
+      buildNumber: '410',
+      fileSize: '32.6 MB',
+      fixes: [
+        'Top and bottom floating pill snackbars with slide transitions',
+        'Automatic queue management and dismiss-on-swipe gestures',
+        'Safe area padding adaptation above bottom navigation bars',
+      ],
+    ),
+    (
+      version: '3.0.0',
+      title: 'Buttons & Shape Morphing',
+      badge: null,
+      releaseDate: 'Aug 05, 2026',
+      buildNumber: '315',
+      fileSize: '29.2 MB',
+      fixes: [
+        'NixButton Material 3 Expressive shape morphing on press and hover',
+        'Expanded button layout support with unconstrained width safety',
+        'Pill-squircle dynamic interpolation for tactile feedback',
+      ],
+    ),
+    (
+      version: '2.0.0',
+      title: 'Inputs & Form Controls',
+      badge: null,
+      releaseDate: 'Jul 18, 2026',
+      buildNumber: '208',
+      fileSize: '26.5 MB',
+      fixes: [
+        'Segmented control with animated sliding pill thumb indicator',
+        'Stadium filter chips with checkmark toggle transitions',
+        'Accessible 48x48 tap target NixSwitch with animated track',
+      ],
+    ),
+    (
+      version: '1.0.0',
+      title: 'Initial System Foundation',
+      badge: 'INITIAL',
+      releaseDate: 'Jun 30, 2026',
+      buildNumber: '100',
+      fileSize: '22.0 MB',
+      fixes: [
+        'Initial public release of the Nix Design System',
+        'Theme-reactive architecture adhering to host app ColorScheme',
+        'Signature pill geometry tokens (NixGeometry and NixSize)',
+      ],
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Material(
+      color: colors.surfaceContainer,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24.0)),
+      clipBehavior: Clip.antiAlias,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.85,
+          child: Column(
+            children: [
+              // Drag handle pill
+              Padding(
+                padding: const EdgeInsets.only(top: 12.0, bottom: 8.0),
+                child: Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.onSurfaceVariant.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Header Row
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.history_rounded,
+                        color: colors.primary,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Version History',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Releases 1 to 9 • Software Changelog',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    NixIconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Divider(height: 1, thickness: 0.5),
+
+              // Single vs Multi Expand Toggle Bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16.0, 10.0, 16.0, 10.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Icon(
+                            _multiExpand
+                                ? Icons.view_stream_rounded
+                                : Icons.unfold_more_rounded,
+                            size: 16,
+                            color: colors.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _multiExpand ? 'Multi Expand' : 'Single Expand',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colors.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 220,
+                      child: NixSegmentedControl<bool>(
+                        value: _multiExpand,
+                        onChanged: (val) {
+                          setState(() {
+                            _multiExpand = val;
+                            if (!_multiExpand && _expandedIndices.length > 1) {
+                              final first = _expandedIndices.first;
+                              _expandedIndices = {first};
+                            }
+                          });
+                        },
+                        items: const [
+                          NixSegment(value: false, label: 'Single'),
+                          NixSegment(value: true, label: 'Multi'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Helper actions in Multi Expand mode
+              if (_multiExpand)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      NixButton.ghost(
+                        size: NixSize.small,
+                        label: const Text('Expand All'),
+                        onPressed: () {
+                          setState(() {
+                            _expandedIndices = Set.from(
+                              List.generate(_versions.length, (i) => i),
+                            );
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      NixButton.ghost(
+                        size: NixSize.small,
+                        label: const Text('Collapse All'),
+                        onPressed: () {
+                          setState(() {
+                            _expandedIndices = {};
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Expandable Versions List (Version 1 to 9)
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16.0, 4.0, 16.0, 24.0),
+                  itemCount: _versions.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final item = _versions[index];
+                    final isExpanded = _expandedIndices.contains(index);
+
+                    return NixExpandable.update(
+                      key: ValueKey('version_${item.version}'),
+                      version: item.version,
+                      titleText: item.title,
+                      subtitleText:
+                          '${item.releaseDate} • Build ${item.buildNumber} • ${item.fileSize}',
+                      badgeText: item.badge,
+                      fixes: item.fixes,
+                      expanded: isExpanded,
+                      onExpansionChanged: (nextState) {
+                        setState(() {
+                          if (_multiExpand) {
+                            if (nextState) {
+                              _expandedIndices.add(index);
+                            } else {
+                              _expandedIndices.remove(index);
+                            }
+                          } else {
+                            if (nextState) {
+                              _expandedIndices = {index};
+                            } else {
+                              _expandedIndices.remove(index);
+                            }
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ),
