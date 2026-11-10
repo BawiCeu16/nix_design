@@ -110,46 +110,61 @@ void main() {
       expect(disp, closeTo(7.5, 0.01));
     });
 
-    test('Neighbour horizontal pull offset and vertical compression on swipe', () {
-      final pull = NixListPhysics.computeSwipeNeighborPull(
-        swipeOffset: 150.0,
-        itemWidth: 300.0,
-        isNeighborAbove: true,
-      );
-      expect(pull.offsetX, closeTo(3.0, 0.01));
-      expect(pull.offsetY, closeTo(1.5, 0.01));
-      expect(pull.scaleY, lessThan(1.0));
-    });
+    test(
+      'Neighbour horizontal pull offset and vertical compression on swipe',
+      () {
+        final pull = NixListPhysics.computeSwipeNeighborPull(
+          swipeOffset: 150.0,
+          itemWidth: 300.0,
+          isNeighborAbove: true,
+        );
+        expect(pull.offsetX, closeTo(3.0, 0.01));
+        expect(pull.offsetY, closeTo(1.5, 0.01));
+        expect(pull.scaleY, lessThan(1.0));
+      },
+    );
   });
 
   group('NixListView & NixListItem Rendering & Container', () {
-    testWidgets('Renders 16px container with surfaceContainer background and segmented items', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(useMaterial3: true),
-          home: Scaffold(
-            body: NixListView(
-              children: const [
-                NixListItem(title: Text('Track 1'), subtitle: Text('Artist 1')),
-                NixListItem(title: Text('Track 2'), subtitle: Text('Artist 2')),
-                NixListItem(title: Text('Track 3'), subtitle: Text('Artist 3')),
-              ],
+    testWidgets(
+      'Renders 16px container with surfaceContainer background and segmented items',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(useMaterial3: true),
+            home: Scaffold(
+              body: NixListView(
+                children: const [
+                  NixListItem(
+                    title: Text('Track 1'),
+                    subtitle: Text('Artist 1'),
+                  ),
+                  NixListItem(
+                    title: Text('Track 2'),
+                    subtitle: Text('Artist 2'),
+                  ),
+                  NixListItem(
+                    title: Text('Track 3'),
+                    subtitle: Text('Artist 3'),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Track 1'), findsOneWidget);
-      expect(find.text('Track 2'), findsOneWidget);
-      expect(find.text('Track 3'), findsOneWidget);
+        expect(find.text('Track 1'), findsOneWidget);
+        expect(find.text('Track 2'), findsOneWidget);
+        expect(find.text('Track 3'), findsOneWidget);
 
-      // Verify container decoration has 16px radius
-      final containerFinder = find.byType(Container).first;
-      final container = tester.widget<Container>(containerFinder);
-      final decoration = container.decoration as BoxDecoration;
-      expect(decoration.borderRadius, BorderRadius.circular(16.0));
-    });
+        // Verify container decoration has 16px radius
+        final containerFinder = find.byType(Container).first;
+        final container = tester.widget<Container>(containerFinder);
+        final decoration = container.decoration as BoxDecoration;
+        expect(decoration.borderRadius, BorderRadius.circular(16.0));
+      },
+    );
 
     testWidgets('Lazily builds with NixListView.builder', (tester) async {
       await tester.pumpWidget(
@@ -159,9 +174,7 @@ void main() {
             body: NixListView.builder(
               itemCount: 10,
               itemBuilder: (context, index) {
-                return NixListItem(
-                  title: Text('Item #$index'),
-                );
+                return NixListItem(title: Text('Item #$index'));
               },
             ),
           ),
@@ -175,80 +188,88 @@ void main() {
   });
 
   group('Selection & Active/Playing States', () {
-    testWidgets('Multi-selection mode toggles items and invokes onSelectionChanged', (tester) async {
-      Set<int> selected = {};
+    testWidgets(
+      'Multi-selection mode toggles items and invokes onSelectionChanged',
+      (tester) async {
+        Set<int> selected = {};
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(useMaterial3: true),
-          home: Scaffold(
-            body: StatefulBuilder(
-              builder: (context, setState) {
-                return NixListView(
-                  selectionMode: NixSelectionMode.multi,
-                  selectedIndices: selected,
-                  onSelectionChanged: (indices) {
-                    setState(() => selected = indices);
-                  },
-                  children: const [
-                    NixListItem(title: Text('Option 0')),
-                    NixListItem(title: Text('Option 1')),
-                    NixListItem(title: Text('Option 2')),
-                  ],
-                );
-              },
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(useMaterial3: true),
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (context, setState) {
+                  return NixListView(
+                    selectionMode: NixSelectionMode.multi,
+                    selectedIndices: selected,
+                    onSelectionChanged: (indices) {
+                      setState(() => selected = indices);
+                    },
+                    children: const [
+                      NixListItem(title: Text('Option 0')),
+                      NixListItem(title: Text('Option 1')),
+                      NixListItem(title: Text('Option 2')),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Tap first item to select
-      await tester.tap(find.text('Option 0'));
-      await tester.pumpAndSettle();
+        // Tap first item to select
+        await tester.tap(find.text('Option 0'));
+        await tester.pumpAndSettle();
 
-      expect(selected.contains(0), isTrue);
+        expect(selected.contains(0), isTrue);
 
-      // Tap second item to select
-      await tester.tap(find.text('Option 1'));
-      await tester.pumpAndSettle();
+        // Tap second item to select
+        await tester.tap(find.text('Option 1'));
+        await tester.pumpAndSettle();
 
-      expect(selected.contains(0), isTrue);
-      expect(selected.contains(1), isTrue);
+        expect(selected.contains(0), isTrue);
+        expect(selected.contains(1), isTrue);
 
-      // Tap first item again to deselect
-      await tester.tap(find.text('Option 0'));
-      await tester.pumpAndSettle();
+        // Tap first item again to deselect
+        await tester.tap(find.text('Option 0'));
+        await tester.pumpAndSettle();
 
-      expect(selected.contains(0), isFalse);
-      expect(selected.contains(1), isTrue);
-    });
+        expect(selected.contains(0), isFalse);
+        expect(selected.contains(1), isTrue);
+      },
+    );
 
-    testWidgets('Playing / Active item renders NixMusicEqualizer and morphs into isolated card', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(useMaterial3: true),
-          home: Scaffold(
-            body: NixListView(
-              playingIndex: 1,
-              children: const [
-                NixListItem(title: Text('Song 1')),
-                NixListItem(title: Text('Song 2')),
-                NixListItem(title: Text('Song 3')),
-              ],
+    testWidgets(
+      'Playing / Active item renders NixMusicEqualizer and morphs into isolated card',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(useMaterial3: true),
+            home: Scaffold(
+              body: NixListView(
+                playingIndex: 1,
+                children: const [
+                  NixListItem(title: Text('Song 1')),
+                  NixListItem(title: Text('Song 2')),
+                  NixListItem(title: Text('Song 3')),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.byType(NixMusicEqualizer), findsOneWidget);
-    });
+        expect(find.byType(NixMusicEqualizer), findsOneWidget);
+      },
+    );
   });
 
   group('Independent Dismiss Left / Right Actions', () {
-    testWidgets('Swipe Right triggers leftAction and dismisses item', (tester) async {
+    testWidgets('Swipe Right triggers leftAction and dismisses item', (
+      tester,
+    ) async {
       bool leftActionFired = false;
 
       await tester.pumpWidget(
@@ -289,166 +310,181 @@ void main() {
       expect(find.text('Swipeable Item'), findsNothing);
     });
 
-    testWidgets('Swipe Left triggers rightAction without dismiss when actionType is action', (tester) async {
-      bool rightActionFired = false;
+    testWidgets(
+      'Swipe Left triggers rightAction without dismiss when actionType is action',
+      (tester) async {
+        bool rightActionFired = false;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(useMaterial3: true),
-          home: Scaffold(
-            body: SizedBox(
-              width: 400,
-              height: 300,
-              child: NixListView(
-                children: [
-                  NixListItem(
-                    title: const Text('Action Item'),
-                    rightAction: NixSwipeAction(
-                      icon: const Icon(Icons.favorite),
-                      label: const Text('Favorite'),
-                      actionType: NixSwipeActionType.action,
-                      onTriggered: () {
-                        rightActionFired = true;
-                      },
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(useMaterial3: true),
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                height: 300,
+                child: NixListView(
+                  children: [
+                    NixListItem(
+                      title: const Text('Action Item'),
+                      rightAction: NixSwipeAction(
+                        icon: const Icon(Icons.favorite),
+                        label: const Text('Favorite'),
+                        actionType: NixSwipeActionType.action,
+                        onTriggered: () {
+                          rightActionFired = true;
+                        },
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Drag to the left across threshold
-      await tester.drag(find.text('Action Item'), const Offset(-200.0, 0.0));
-      await tester.pumpAndSettle();
+        // Drag to the left across threshold
+        await tester.drag(find.text('Action Item'), const Offset(-200.0, 0.0));
+        await tester.pumpAndSettle();
 
-      expect(rightActionFired, isTrue);
-      // Item springs back and remains visible
-      expect(find.text('Action Item'), findsOneWidget);
-    });
+        expect(rightActionFired, isTrue);
+        // Item springs back and remains visible
+        expect(find.text('Action Item'), findsOneWidget);
+      },
+    );
 
-    testWidgets('Swipe gesture applies dynamic corner morphing: swiping card detaches and adjacent neighbors seal', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(useMaterial3: true),
-          home: Scaffold(
-            body: SizedBox(
-              width: 400,
-              height: 400,
-              child: NixListView(
-                children: [
-                  const NixListItem(title: Text('Item 0')),
-                  NixListItem(
-                    title: const Text('Item 1'),
-                    leftAction: NixSwipeAction(
-                      icon: const Icon(Icons.star),
-                      label: const Text('Star'),
-                      onTriggered: () {},
+    testWidgets(
+      'Swipe gesture applies dynamic corner morphing: swiping card detaches and adjacent neighbors seal',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(useMaterial3: true),
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                height: 400,
+                child: NixListView(
+                  children: [
+                    const NixListItem(title: Text('Item 0')),
+                    NixListItem(
+                      title: const Text('Item 1'),
+                      leftAction: NixSwipeAction(
+                        icon: const Icon(Icons.star),
+                        label: const Text('Star'),
+                        onTriggered: () {},
+                      ),
                     ),
-                  ),
-                  const NixListItem(title: Text('Item 2')),
-                ],
+                    const NixListItem(title: Text('Item 2')),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Swipe Item 1 to the right by moving past touch slop
-      final gesture = await tester.startGesture(tester.getCenter(find.text('Item 1')));
-      await gesture.moveBy(const Offset(25.0, 0.0));
-      await tester.pump();
-      await gesture.moveBy(const Offset(60.0, 0.0));
-      await tester.pump();
+        // Swipe Item 1 to the right by moving past touch slop
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('Item 1')),
+        );
+        await gesture.moveBy(const Offset(25.0, 0.0));
+        await tester.pump();
+        await gesture.moveBy(const Offset(60.0, 0.0));
+        await tester.pump();
 
-      // Inspect Item 0 (above) - its bottom corner should seal to 12px because next neighbor is swiping!
-      final scope0 = tester.widget<NixListScope>(
-        find.byWidgetPredicate((w) => w is NixListScope && w.index == 0),
-      );
-      expect(scope0.nextDetached, isTrue);
-      expect(scope0.scaleX, equals(1.0));
-      expect(scope0.scaleY, equals(1.0));
-      expect(scope0.displacementOffsetY, equals(0.0));
+        // Inspect Item 0 (above) - its bottom corner should seal to 12px because next neighbor is swiping!
+        final scope0 = tester.widget<NixListScope>(
+          find.byWidgetPredicate((w) => w is NixListScope && w.index == 0),
+        );
+        expect(scope0.nextDetached, isTrue);
+        expect(scope0.scaleX, equals(1.0));
+        expect(scope0.scaleY, equals(1.0));
+        expect(scope0.displacementOffsetY, equals(0.0));
 
-      // Inspect Item 2 (below) - its top corner should seal to 12px because previous neighbor is swiping!
-      final scope2 = tester.widget<NixListScope>(
-        find.byWidgetPredicate((w) => w is NixListScope && w.index == 2),
-      );
-      expect(scope2.prevDetached, isTrue);
-      expect(scope2.scaleX, equals(1.0));
-      expect(scope2.scaleY, equals(1.0));
-      expect(scope2.displacementOffsetY, equals(0.0));
+        // Inspect Item 2 (below) - its top corner should seal to 12px because previous neighbor is swiping!
+        final scope2 = tester.widget<NixListScope>(
+          find.byWidgetPredicate((w) => w is NixListScope && w.index == 2),
+        );
+        expect(scope2.prevDetached, isTrue);
+        expect(scope2.scaleX, equals(1.0));
+        expect(scope2.scaleY, equals(1.0));
+        expect(scope2.displacementOffsetY, equals(0.0));
 
-      await gesture.up();
-      await tester.pumpAndSettle();
-    });
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
   });
 
   group('Reordering & NixReorderHandle', () {
-    testWidgets('Reorder does not apply squish physics or reach deformation to adjacent cards', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(useMaterial3: true),
-          home: Scaffold(
-            body: SizedBox(
-              width: 400,
-              height: 400,
-              child: NixListView(
-                reorderable: true,
-                onReorder: (oldIdx, newIdx) {},
-                children: const [
-                  NixListItem(
-                    title: Text('Row 0'),
-                    reorderHandle: NixReorderHandle(),
-                  ),
-                  NixListItem(
-                    title: Text('Row 1'),
-                    reorderHandle: NixReorderHandle(),
-                  ),
-                  NixListItem(
-                    title: Text('Row 2'),
-                    reorderHandle: NixReorderHandle(),
-                  ),
-                ],
+    testWidgets(
+      'Reorder does not apply squish physics or reach deformation to adjacent cards',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(useMaterial3: true),
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                height: 400,
+                child: NixListView(
+                  reorderable: true,
+                  onReorder: (oldIdx, newIdx) {},
+                  children: const [
+                    NixListItem(
+                      title: Text('Row 0'),
+                      reorderHandle: NixReorderHandle(),
+                    ),
+                    NixListItem(
+                      title: Text('Row 1'),
+                      reorderHandle: NixReorderHandle(),
+                    ),
+                    NixListItem(
+                      title: Text('Row 2'),
+                      reorderHandle: NixReorderHandle(),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      final handleFinder = find.byType(NixReorderHandle).first;
-      final gesture = await tester.startGesture(tester.getCenter(handleFinder));
-      await tester.pump();
-      await gesture.moveBy(const Offset(0.0, 45.0));
-      await tester.pump();
+        final handleFinder = find.byType(NixReorderHandle).first;
+        final gesture = await tester.startGesture(
+          tester.getCenter(handleFinder),
+        );
+        await tester.pump();
+        await gesture.moveBy(const Offset(0.0, 45.0));
+        await tester.pump();
 
-      // Verify Row 1 and Row 2 have NO squish, NO reach deformation, and NO displacement during reorder
-      final scope1 = tester.widget<NixListScope>(
-        find.byWidgetPredicate((w) => w is NixListScope && w.index == 1),
-      );
-      expect(scope1.scaleX, equals(1.0));
-      expect(scope1.scaleY, equals(1.0));
-      expect(scope1.squishTopReach, equals(0.0));
-      expect(scope1.squishBottomReach, equals(0.0));
-      expect(scope1.displacementOffsetY, equals(0.0));
+        // Verify Row 1 and Row 2 have NO squish, NO reach deformation, and NO displacement during reorder
+        final scope1 = tester.widget<NixListScope>(
+          find.byWidgetPredicate((w) => w is NixListScope && w.index == 1),
+        );
+        expect(scope1.scaleX, equals(1.0));
+        expect(scope1.scaleY, equals(1.0));
+        expect(scope1.squishTopReach, equals(0.0));
+        expect(scope1.squishBottomReach, equals(0.0));
+        expect(scope1.displacementOffsetY, equals(0.0));
 
-      final scope2 = tester.widget<NixListScope>(
-        find.byWidgetPredicate((w) => w is NixListScope && w.index == 2),
-      );
-      expect(scope2.scaleX, equals(1.0));
-      expect(scope2.scaleY, equals(1.0));
-      expect(scope2.squishTopReach, equals(0.0));
-      expect(scope2.squishBottomReach, equals(0.0));
-      expect(scope2.displacementOffsetY, equals(0.0));
+        final scope2 = tester.widget<NixListScope>(
+          find.byWidgetPredicate((w) => w is NixListScope && w.index == 2),
+        );
+        expect(scope2.scaleX, equals(1.0));
+        expect(scope2.scaleY, equals(1.0));
+        expect(scope2.squishTopReach, equals(0.0));
+        expect(scope2.squishBottomReach, equals(0.0));
+        expect(scope2.displacementOffsetY, equals(0.0));
 
-      await gesture.up();
-      await tester.pumpAndSettle();
-    });
-    testWidgets('Reorder handle triggers reorder drag and invokes onReorder', (tester) async {
+        await gesture.up();
+        await tester.pumpAndSettle();
+      },
+    );
+    testWidgets('Reorder handle triggers reorder drag and invokes onReorder', (
+      tester,
+    ) async {
       int? reorderedFrom;
       int? reorderedTo;
 
@@ -499,6 +535,66 @@ void main() {
 
       expect(reorderedFrom, equals(0));
       expect(reorderedTo, equals(1));
+    });
+
+    testWidgets('Reorder from index 0 to index 2 moves cleanly and invokes onReorder(0, 2)', (
+      tester,
+    ) async {
+      int? reorderedFrom;
+      int? reorderedTo;
+      final items = ['Row 0', 'Row 1', 'Row 2'];
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return MaterialApp(
+              theme: ThemeData(useMaterial3: true),
+              home: Scaffold(
+                body: SizedBox(
+                  width: 400,
+                  height: 400,
+                  child: NixListView(
+                    reorderable: true,
+                    onReorder: (oldIdx, newIdx) {
+                      reorderedFrom = oldIdx;
+                      reorderedTo = newIdx;
+                      setState(() {
+                        final item = items.removeAt(oldIdx);
+                        items.insert(newIdx, item);
+                      });
+                    },
+                    children: items
+                        .map(
+                          (name) => NixListItem(
+                            key: ValueKey(name),
+                            title: Text(name),
+                            reorderHandle: const NixReorderHandle(),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final firstHandle = find.byType(NixReorderHandle).first;
+      expect(firstHandle, findsOneWidget);
+
+      // Drag first item all the way down past slot 2
+      final gesture = await tester.startGesture(tester.getCenter(firstHandle));
+      await tester.pump();
+      await gesture.moveBy(const Offset(0.0, 140.0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(reorderedFrom, equals(0));
+      expect(reorderedTo, equals(2));
+      expect(items, equals(['Row 1', 'Row 2', 'Row 0']));
     });
   });
 }

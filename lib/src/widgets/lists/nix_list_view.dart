@@ -205,7 +205,15 @@ class NixListView extends StatefulWidget {
 class _NixListViewState extends State<NixListView>
     with SingleTickerProviderStateMixin {
   final GlobalKey _listContainerKey = GlobalKey();
-  final Map<int, GlobalKey> _itemKeys = {};
+  final Map<Key, GlobalKey> _measurementKeys = {};
+  final List<double> _restingSlotTops = [];
+  final List<double> _restingSlotHeights = [];
+  final List<double> _restingSlotCenters = [];
+  bool _justReordered = false;
+
+  late final AnimationController _settleController;
+  Animation<double>? _settleAnimation;
+  Animation<double>? _settleXAnimation;
 
   // Reorder Gestures
   late final ImmediateMultiDragGestureRecognizer _immediateRecognizer;
@@ -233,6 +241,21 @@ class _NixListViewState extends State<NixListView>
         ? Set<int>.from(widget.selectedIndices!)
         : <int>{};
 
+    _settleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 160),
+    );
+    _settleController.addListener(() {
+      if (_settleController.isAnimating && _settleAnimation != null) {
+        setState(() {
+          _dragOffsetY = _settleAnimation!.value;
+          if (_settleXAnimation != null) {
+            _dragOffsetX = _settleXAnimation!.value;
+          }
+        });
+      }
+    });
+
     _immediateRecognizer = ImmediateMultiDragGestureRecognizer()
       ..onStart = _handleDragStart;
 
@@ -252,15 +275,14 @@ class _NixListViewState extends State<NixListView>
     if (widget.selectedIndices != null) {
       _internalSelected = Set<int>.from(widget.selectedIndices!);
     }
-    // Clean up cached item keys whenever list count or items change to prevent stale measurements
     if (widget.effectiveItemCount != oldWidget.effectiveItemCount) {
-      _itemKeys.clear();
       _activeSwipingIndex = null;
     }
   }
 
   @override
   void dispose() {
+    _settleController.dispose();
     _immediateRecognizer.dispose();
     _delayedRecognizer?.dispose();
     super.dispose();
@@ -299,19 +321,64 @@ class _NixListViewState extends State<NixListView>
     }
   }
 
+  Key _getItemKey(int index) {
+    final rawChild = _getRawChild(context, index);
+    return rawChild.key ?? ValueKey('nix_item_$index');
+  }
+
+  double _measureItemTop(int index) {
+    final itemKey = _getItemKey(index);
+    final ctx = _measurementKeys[itemKey]?.currentContext;
+    if (ctx != null) {
+      final box = ctx.findRenderObject() as RenderBox?;
+      final containerBox =
+          _listContainerKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize && containerBox != null) {
+        return box.localToGlobal(Offset.zero, ancestor: containerBox).dy;
+      }
+    }
+    const defaultHeight = 60.0;
+    return index * (defaultHeight + widget.itemSpacing);
+  }
+
+  double _measureItemHeight(int index) {
+    final itemKey = _getItemKey(index);
+    final ctx = _measurementKeys[itemKey]?.currentContext;
+    if (ctx != null) {
+      final box = ctx.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize) {
+        return box.size.height;
+      }
+    }
+    return 56.0;
+  }
+
   Drag? _handleDragStart(Offset startPosition) {
     if (_pendingDragIndex == null ||
         _pendingDragIndex! < 0 ||
-        _pendingDragIndex! >= widget.effectiveItemCount) {
+        _pendingDragIndex! >= widget.effectiveItemCount ||
+        _settleController.isAnimating) {
       return null;
     }
 
     final index = _pendingDragIndex!;
     HapticFeedback.mediumImpact();
 
-    // Measure exact initial top offset and height
-    final initialTop = _getItemTop(index);
-    final height = _getItemHeight(index);
+    // Cache the exact resting tops, heights, and centers of all items BEFORE anything moves
+    _restingSlotTops.clear();
+    _restingSlotHeights.clear();
+    _restingSlotCenters.clear();
+
+    for (int i = 0; i < widget.effectiveItemCount; i++) {
+      final top = _measureItemTop(i);
+      final height = _measureItemHeight(i);
+      _restingSlotTops.add(top);
+      _restingSlotHeights.add(height);
+      _restingSlotCenters.add(top + (height / 2.0));
+    }
+
+    final initialTop = _restingSlotTops[index];
+    final height = _restingSlotHeights[index];
 
     setState(() {
       _draggedIndex = index;
@@ -330,67 +397,104 @@ class _NixListViewState extends State<NixListView>
   }
 
   void _updateDrag(DragUpdateDetails details) {
-    if (_draggedIndex == null) return;
+    if (_draggedIndex == null || _settleController.isAnimating) return;
+
+    final newOffsetY = _dragOffsetY + details.delta.dy;
+    final newOffsetX =
+        (_dragOffsetX + details.delta.dx * 0.4).clamp(-28.0, 28.0);
+
+    // Current center of the floating dragged card
+    final currentDraggedCenter =
+        _draggedInitialTop + (_draggedHeight / 2.0) + newOffsetY;
+
+    // Compare against the STATIC, FIXED resting slot centers
+    int bestSlot = _draggedIndex!;
+    double minDistance = double.infinity;
+
+    for (int i = 0; i < _restingSlotCenters.length; i++) {
+      final distance = (currentDraggedCenter - _restingSlotCenters[i]).abs();
+      if (distance < minDistance) {
+        minDistance = distance;
+        bestSlot = i;
+      }
+    }
+
+    if (bestSlot != _hoverTargetIndex) {
+      HapticFeedback.selectionClick();
+    }
 
     setState(() {
-      _dragOffsetY += details.delta.dy;
-      _dragOffsetX = (_dragOffsetX + details.delta.dx * 0.4).clamp(-28.0, 28.0);
-
-      // Dynamically detect hover slot
-      final currentDraggedCenter =
-          _draggedInitialTop + (_draggedHeight / 2.0) + _dragOffsetY;
-
-      int bestSlot = _draggedIndex!;
-      double minDistance = double.infinity;
-
-      for (int i = 0; i < widget.effectiveItemCount; i++) {
-        final itemCenter = _getItemCenterY(i);
-        final distance = (currentDraggedCenter - itemCenter).abs();
-        if (distance < minDistance) {
-          minDistance = distance;
-          bestSlot = i;
-        }
-      }
-
-      if (bestSlot != _hoverTargetIndex) {
-        _hoverTargetIndex = bestSlot;
-        HapticFeedback.selectionClick();
-      }
+      _dragOffsetY = newOffsetY;
+      _dragOffsetX = newOffsetX;
+      _hoverTargetIndex = bestSlot;
     });
   }
 
   void _finishDrag(DragEndDetails details) {
-    if (_draggedIndex == null) return;
+    if (_draggedIndex == null || _settleController.isAnimating) return;
 
     final from = _draggedIndex!;
     final to = _hoverTargetIndex ?? from;
 
-    HapticFeedback.lightImpact();
+    _settleToSlot(from, to);
+  }
 
-    setState(() {
-      _draggedIndex = null;
-      _hoverTargetIndex = null;
-      _pendingDragIndex = null;
-      _dragOffsetY = 0.0;
-      _dragOffsetX = 0.0;
-      _itemKeys.clear();
-    });
-
-    if (from != to) {
-      widget.onReorder?.call(from, to);
+  void _settleToSlot(int from, int to) {
+    double targetTop = _draggedInitialTop;
+    if (_restingSlotTops.isNotEmpty &&
+        to >= 0 &&
+        to < _restingSlotTops.length) {
+      targetTop = _restingSlotTops[to];
     }
+    final targetOffsetY = targetTop - _draggedInitialTop;
+
+    _settleAnimation = Tween<double>(
+      begin: _dragOffsetY,
+      end: targetOffsetY,
+    ).animate(CurvedAnimation(
+      parent: _settleController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _settleXAnimation = Tween<double>(
+      begin: _dragOffsetX,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _settleController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _settleController.forward(from: 0.0).then((_) {
+      if (!mounted) return;
+
+      HapticFeedback.lightImpact();
+
+      if (from != to) {
+        _justReordered = true;
+        widget.onReorder?.call(from, to);
+      }
+
+      setState(() {
+        _draggedIndex = null;
+        _hoverTargetIndex = null;
+        _pendingDragIndex = null;
+        _dragOffsetY = 0.0;
+        _dragOffsetX = 0.0;
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _justReordered = false;
+          });
+        }
+      });
+    });
   }
 
   void _cancelDrag() {
     if (_draggedIndex == null) return;
-    setState(() {
-      _draggedIndex = null;
-      _hoverTargetIndex = null;
-      _pendingDragIndex = null;
-      _dragOffsetY = 0.0;
-      _dragOffsetX = 0.0;
-      _itemKeys.clear();
-    });
+    _settleToSlot(_draggedIndex!, _draggedIndex!);
   }
 
   void _cancelPendingReorder() {
@@ -398,35 +502,6 @@ class _NixListViewState extends State<NixListView>
     if (_draggedIndex == null) {
       _resetDelayedRecognizer();
     }
-  }
-
-  double _getItemTop(int index) {
-    final ctx = _itemKeys[index]?.currentContext;
-    if (ctx != null) {
-      final box = ctx.findRenderObject() as RenderBox?;
-      final containerBox =
-          _listContainerKey.currentContext?.findRenderObject() as RenderBox?;
-      if (box != null && box.hasSize && containerBox != null) {
-        return box.localToGlobal(Offset.zero, ancestor: containerBox).dy;
-      }
-    }
-    const defaultHeight = 60.0;
-    return index * (defaultHeight + widget.itemSpacing);
-  }
-
-  double _getItemHeight(int index) {
-    final ctx = _itemKeys[index]?.currentContext;
-    if (ctx != null) {
-      final box = ctx.findRenderObject() as RenderBox?;
-      if (box != null && box.hasSize) {
-        return box.size.height;
-      }
-    }
-    return 56.0;
-  }
-
-  double _getItemCenterY(int index) {
-    return _getItemTop(index) + (_getItemHeight(index) / 2.0);
   }
 
   void _handleSwipeUpdate(int index, double offset) {
@@ -463,6 +538,9 @@ class _NixListViewState extends State<NixListView>
 
   Widget _buildScopedChild(BuildContext context, int index) {
     final rawChild = _getRawChild(context, index);
+    final itemKey = _getItemKey(index);
+    final measurementKey =
+        _measurementKeys.putIfAbsent(itemKey, () => GlobalKey());
 
     final isSelected = _internalSelected.contains(index);
     final isPlaying = widget.playingIndex == index;
@@ -478,18 +556,26 @@ class _NixListViewState extends State<NixListView>
       final from = _draggedIndex!;
       final to = _hoverTargetIndex!;
 
+      final double currentItemHeight =
+          (_restingSlotHeights.isNotEmpty && index < _restingSlotHeights.length)
+              ? _restingSlotHeights[index]
+              : _measureItemHeight(index);
+
+      final double step = (_draggedHeight + widget.itemSpacing);
+      final double fractionStep =
+          currentItemHeight > 0 ? (step / currentItemHeight) : 1.0;
+
       if (from < to && index > from && index <= to) {
-        slotShiftFraction = -1.0;
+        slotShiftFraction = -fractionStep;
       } else if (from > to && index < from && index >= to) {
-        slotShiftFraction = 1.0;
+        slotShiftFraction = fractionStep;
       }
     }
 
-    final key = _itemKeys.putIfAbsent(index, () => GlobalKey());
     final isSelectable = widget.selectionMode != NixSelectionMode.none;
 
     Widget scopedWidget = KeyedSubtree(
-      key: key,
+      key: measurementKey,
       child: NixListScope(
         index: index,
         totalCount: widget.effectiveItemCount,
@@ -529,7 +615,9 @@ class _NixListViewState extends State<NixListView>
     // Wrap in animated slide for smooth slot opening
     Widget item = AnimatedSlide(
       offset: Offset(0, slotShiftFraction),
-      duration: const Duration(milliseconds: 240),
+      duration: _justReordered
+          ? Duration.zero
+          : const Duration(milliseconds: 200),
       curve: Curves.easeOutCubic,
       child: scopedWidget,
     );
@@ -542,7 +630,11 @@ class _NixListViewState extends State<NixListView>
       );
     }
 
-    return item;
+    // Outer KeyedSubtree preserves item state and element identity across reorders
+    return KeyedSubtree(
+      key: itemKey,
+      child: item,
+    );
   }
 
   Widget _buildFloatingDraggedCard(BuildContext context) {
