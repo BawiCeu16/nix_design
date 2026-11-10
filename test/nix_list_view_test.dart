@@ -329,7 +329,7 @@ void main() {
       expect(find.text('Action Item'), findsOneWidget);
     });
 
-    testWidgets('Swipe gesture applies Neighbour Squish Physics, spring displacement, reach and pull offset to adjacent cards', (tester) async {
+    testWidgets('Swipe gesture applies dynamic corner morphing: swiping card detaches and adjacent neighbors seal', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: ThemeData(useMaterial3: true),
@@ -364,25 +364,23 @@ void main() {
       await gesture.moveBy(const Offset(60.0, 0.0));
       await tester.pump();
 
-      // Inspect Item 0 (above)
+      // Inspect Item 0 (above) - its bottom corner should seal to 12px because next neighbor is swiping!
       final scope0 = tester.widget<NixListScope>(
         find.byWidgetPredicate((w) => w is NixListScope && w.index == 0),
       );
-      expect(scope0.squishBottomReach, greaterThan(0.0));
-      expect(scope0.scaleX, greaterThan(1.0));
-      expect(scope0.scaleY, lessThan(1.0));
-      expect(scope0.displacementOffsetY, lessThan(0.0));
-      expect(scope0.swipePullOffsetX, greaterThan(0.0));
+      expect(scope0.nextDetached, isTrue);
+      expect(scope0.scaleX, equals(1.0));
+      expect(scope0.scaleY, equals(1.0));
+      expect(scope0.displacementOffsetY, equals(0.0));
 
-      // Inspect Item 2 (below)
+      // Inspect Item 2 (below) - its top corner should seal to 12px because previous neighbor is swiping!
       final scope2 = tester.widget<NixListScope>(
         find.byWidgetPredicate((w) => w is NixListScope && w.index == 2),
       );
-      expect(scope2.squishTopReach, greaterThan(0.0));
-      expect(scope2.scaleX, greaterThan(1.0));
-      expect(scope2.scaleY, lessThan(1.0));
-      expect(scope2.displacementOffsetY, greaterThan(0.0));
-      expect(scope2.swipePullOffsetX, greaterThan(0.0));
+      expect(scope2.prevDetached, isTrue);
+      expect(scope2.scaleX, equals(1.0));
+      expect(scope2.scaleY, equals(1.0));
+      expect(scope2.displacementOffsetY, equals(0.0));
 
       await gesture.up();
       await tester.pumpAndSettle();

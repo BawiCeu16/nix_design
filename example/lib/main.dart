@@ -332,7 +332,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               child: _buildCategoryCard(
                 icon: Icons.view_agenda_rounded,
                 title: 'List View',
-                subtitle: 'Squish Physics',
+                subtitle: 'Corner Morphs',
                 tabIndex: 2,
               ),
             ),
@@ -637,7 +637,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           child: const Text(
             '• Segmented Radii: 16px container, 12px outer, 6px inner.\n'
             '• Dynamic Sealing: Playing/selected cards morph to 14px isolated pills; neighbors dynamically adapt corners!\n'
-            '• Neighbour Squish Physics: Swiping compresses & stretches adjacent cards with volume preservation, spring displacement, reach & pull offset.\n'
+            '• Dynamic Morphs & Swipe: Swiped card elevates with shadow & morphs to 14px; adjacent neighbors seal corners to 12px!\n'
             '• Independent Swipe: Swipe right to favorite, swipe left to delete.',
             style: TextStyle(fontSize: 12.5, height: 1.45),
           ),
@@ -1162,11 +1162,11 @@ class _NixSearchSheetState extends State<_NixSearchSheet> {
       desc: 'Dynamic corner morphing, swipe actions & selection',
     ),
     (
-      name: 'Neighbour Squish Physics',
+      name: 'Dynamic Corner Morphs',
       category: 'Lists',
       tabIndex: 2,
-      icon: Icons.compress_rounded,
-      desc: 'Spring displacement & volume-preserving squash & stretch',
+      icon: Icons.rounded_corner_rounded,
+      desc: 'Dynamic segmented corner morphing & neighbor sealing',
     ),
     (
       name: 'NixMusicEqualizer',

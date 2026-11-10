@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 ///
 /// Implements:
 /// - Dynamic segmented corner radii (16px container, 12px outer, 6px inner/neighbour).
-/// - Neighbor reach & shape morphing.
-/// - Spring-driven displacement of adjacent cards during drag.
-/// - Volume-preserving squash & stretch scaling.
+/// - Dynamic corner radius morphing (14px detached pill on swipe, selection, or playback).
+/// - Dynamic neighbor sealing (adjacent cards morph to 12px when a card detaches or swipes).
+/// - Critically-damped spring physics for smooth snap-backs.
 class NixListPhysics {
   const NixListPhysics._();
 

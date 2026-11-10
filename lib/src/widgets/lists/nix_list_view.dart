@@ -220,9 +220,8 @@ class _NixListViewState extends State<NixListView>
   double _draggedInitialTop = 0.0;
   double _draggedHeight = 56.0;
 
-  // Swipe reactive neighbor state
+  // Active swiping item index for dynamic neighbor corner sealing
   int? _activeSwipingIndex;
-  double _activeSwipeOffset = 0.0;
 
   // Internal selection state if not controlled externally
   late Set<int> _internalSelected;
@@ -257,7 +256,6 @@ class _NixListViewState extends State<NixListView>
     if (widget.effectiveItemCount != oldWidget.effectiveItemCount) {
       _itemKeys.clear();
       _activeSwipingIndex = null;
-      _activeSwipeOffset = 0.0;
     }
   }
 
@@ -432,19 +430,17 @@ class _NixListViewState extends State<NixListView>
   }
 
   void _handleSwipeUpdate(int index, double offset) {
-    if (!widget.enableNeighbourSquish) return;
-    setState(() {
-      _activeSwipingIndex = index;
-      _activeSwipeOffset = offset;
-    });
+    if (_activeSwipingIndex != index) {
+      setState(() {
+        _activeSwipingIndex = index;
+      });
+    }
   }
 
   void _handleSwipeEnd(int index) {
-    if (!widget.enableNeighbourSquish) return;
     if (_activeSwipingIndex == index) {
       setState(() {
         _activeSwipingIndex = null;
-        _activeSwipeOffset = 0.0;
       });
     }
   }
@@ -454,7 +450,8 @@ class _NixListViewState extends State<NixListView>
     final isSel = _internalSelected.contains(index);
     final isPlay = widget.playingIndex == index;
     final isDrag = _draggedIndex == index;
-    return isSel || isPlay || isDrag;
+    final isSwipe = _activeSwipingIndex == index;
+    return isSel || isPlay || isDrag || isSwipe;
   }
 
   Widget _getRawChild(BuildContext context, int index) {
@@ -471,23 +468,11 @@ class _NixListViewState extends State<NixListView>
     final isPlaying = widget.playingIndex == index;
     final isDragged = _draggedIndex == index;
 
-    // Check neighbors detached state for dynamic corner radius sealing
+    // Check neighbors detached state for dynamic corner radius morphing & sealing
     final prevDetached = _isDetached(index - 1);
     final nextDetached = _isDetached(index + 1);
 
-    // Dynamic Swipe Pull on immediate neighbors
-    double swipePullX = 0.0;
-    double swipePullY = 0.0;
-    double swipePullScaleY = 1.0;
-
-    // Neighbour Squish Physics & Reach variables (active on SWIPE only)
-    double squishTopReach = 0.0;
-    double squishBottomReach = 0.0;
-    double displacementOffsetY = 0.0;
-    double scaleX = 1.0;
-    double scaleY = 1.0;
-
-    // Calculate slot shift during reorder (Reorder opens slots cleanly, no squishing)
+    // Calculate slot shift during reorder (Reorder opens slots cleanly)
     double slotShiftFraction = 0.0;
     if (_draggedIndex != null && _hoverTargetIndex != null && !isDragged) {
       final from = _draggedIndex!;
@@ -497,68 +482,6 @@ class _NixListViewState extends State<NixListView>
         slotShiftFraction = -1.0;
       } else if (from > to && index < from && index >= to) {
         slotShiftFraction = 1.0;
-      }
-    }
-
-    // Neighbour Squish Physics, Spring Displacement, Pull Offset & Reach (SWIPE ONLY)
-    if (widget.enableNeighbourSquish &&
-        _activeSwipingIndex != null &&
-        _activeSwipeOffset != 0.0) {
-      final swipingIdx = _activeSwipingIndex!;
-      final offset = _activeSwipeOffset;
-
-      if (index == swipingIdx - 1) {
-        // Neighbor above the swiped card
-        final reach = NixListPhysics.computeReachFactor(
-          swipeOffset: offset,
-          threshold: 110.0,
-        );
-        final squish = NixListPhysics.computeSquishScale(
-          reachFactor: reach,
-        );
-        scaleX = squish.scaleX;
-        scaleY = squish.scaleY;
-        displacementOffsetY = NixListPhysics.computeDisplacementOffset(
-          reachFactor: reach,
-          isDraggedAbove: false,
-          maxDisplacement: 6.0,
-        );
-        squishBottomReach = reach;
-
-        final pull = NixListPhysics.computeSwipeNeighborPull(
-          swipeOffset: offset,
-          itemWidth: 300.0,
-          isNeighborAbove: true,
-        );
-        swipePullX = pull.offsetX;
-        swipePullY = pull.offsetY;
-        swipePullScaleY = pull.scaleY;
-      } else if (index == swipingIdx + 1) {
-        // Neighbor below the swiped card
-        final reach = NixListPhysics.computeReachFactor(
-          swipeOffset: offset,
-          threshold: 110.0,
-        );
-        final squish = NixListPhysics.computeSquishScale(
-          reachFactor: reach,
-        );
-        scaleX = squish.scaleX;
-        scaleY = squish.scaleY;
-        displacementOffsetY = NixListPhysics.computeDisplacementOffset(
-          reachFactor: reach,
-          isDraggedAbove: true,
-          maxDisplacement: 6.0,
-        );
-        squishTopReach = reach;
-
-        final pull = NixListPhysics.computeSwipeNeighborPull(
-          swipeOffset: offset,
-          itemWidth: 300.0,
-          isNeighborAbove: false,
-        );
-        swipePullX = pull.offsetX;
-        swipePullY = pull.offsetY;
-        swipePullScaleY = pull.scaleY;
       }
     }
 
@@ -575,14 +498,6 @@ class _NixListViewState extends State<NixListView>
         isPlaying: isPlaying,
         prevDetached: prevDetached,
         nextDetached: nextDetached,
-        squishTopReach: squishTopReach,
-        squishBottomReach: squishBottomReach,
-        displacementOffsetY: displacementOffsetY,
-        scaleX: scaleX,
-        scaleY: scaleY,
-        swipePullOffsetX: swipePullX,
-        swipePullOffsetY: swipePullY,
-        swipePullScaleY: swipePullScaleY,
         isDragged: isDragged,
         isReordering: _draggedIndex != null,
         onStartReorder: (idx, event) =>

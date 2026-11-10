@@ -17,21 +17,21 @@ class NixListScope extends InheritedWidget {
     required this.isPlaying,
     required this.prevDetached,
     required this.nextDetached,
-    required this.squishTopReach,
-    required this.squishBottomReach,
-    required this.displacementOffsetY,
-    required this.scaleX,
-    required this.scaleY,
-    required this.swipePullOffsetX,
-    required this.swipePullOffsetY,
-    required this.swipePullScaleY,
+    this.squishTopReach = 0.0,
+    this.squishBottomReach = 0.0,
+    this.displacementOffsetY = 0.0,
+    this.scaleX = 1.0,
+    this.scaleY = 1.0,
+    this.swipePullOffsetX = 0.0,
+    this.swipePullOffsetY = 0.0,
+    this.swipePullScaleY = 1.0,
     required this.isDragged,
     required this.isReordering,
     required this.onStartReorder,
     required this.onCancelReorder,
-    required this.onSwipeUpdate,
-    required this.onSwipeEnd,
-    required this.onItemSelect,
+    this.onSwipeUpdate,
+    this.onSwipeEnd,
+    this.onItemSelect,
     required super.child,
   });
 
@@ -365,19 +365,35 @@ class _NixListItemState extends State<NixListItem>
     if (dx > 0 && widget.leftAction == null && _swipeOffset >= 0) return;
     if (dx < 0 && widget.rightAction == null && _swipeOffset <= 0) return;
 
+    double effectiveDx = dx;
+    final currentAction =
+        (_swipeOffset + dx) > 0 ? widget.leftAction : widget.rightAction;
+    if (currentAction != null) {
+      final thresholdPx = itemWidth * currentAction.threshold;
+      if (_swipeOffset.abs() > thresholdPx) {
+        // Smooth rubber-banding resistance past threshold
+        final overscroll = _swipeOffset.abs() - thresholdPx;
+        effectiveDx *= (1.0 / (1.0 + overscroll * 0.015));
+      }
+    }
+
     setState(() {
-      _swipeOffset += dx;
-      final currentAction = _swipeOffset > 0 ? widget.leftAction : widget.rightAction;
-      if (currentAction != null) {
-        final thresholdPx = itemWidth * currentAction.threshold;
+      _swipeOffset += effectiveDx;
+      final activeAction =
+          _swipeOffset > 0 ? widget.leftAction : widget.rightAction;
+      if (activeAction != null) {
+        final thresholdPx = itemWidth * activeAction.threshold;
         final crossed = _swipeOffset.abs() >= thresholdPx;
         if (crossed && !_thresholdTriggered) {
           _thresholdTriggered = true;
-          if (currentAction.hapticFeedback) {
-            HapticFeedback.selectionClick();
+          if (activeAction.hapticFeedback) {
+            HapticFeedback.mediumImpact();
           }
         } else if (!crossed && _thresholdTriggered) {
           _thresholdTriggered = false;
+          if (activeAction.hapticFeedback) {
+            HapticFeedback.selectionClick();
+          }
         }
       }
     });
@@ -490,29 +506,32 @@ class _NixListItemState extends State<NixListItem>
     final isEffectiveSelected = widget.isSelected || (scope?.isSelected ?? false);
     final isEffectiveSelectable = widget.isSelectable || (scope?.isSelectable ?? false);
 
+    final currentOffset =
+        _resetController.isAnimating ? _resetAnimation.value : _swipeOffset;
+    final isCurrentlySwiping = currentOffset.abs() > 1.5;
+
+    final isDetached = isEffectiveSelected ||
+        isEffectivePlaying ||
+        (scope?.isDragged ?? false) ||
+        isCurrentlySwiping;
+
     // Compute dynamic segmented corner radius
     final computedRadius = widget.borderRadius ??
-        (isEffectiveSelected
+        (isDetached
             ? (widget.selectedBorderRadius ??
+                widget.activeBorderRadius ??
                 const BorderRadius.all(
                   Radius.circular(NixListPhysics.detachedItemRadius),
                 ))
-            : isEffectivePlaying
-                ? (widget.activeBorderRadius ??
-                    const BorderRadius.all(
-                      Radius.circular(NixListPhysics.detachedItemRadius),
-                    ))
-                : NixListPhysics.computeSegmentedRadius(
-                    index: scope?.index ?? 0,
-                    totalCount: scope?.totalCount ?? 1,
-                    isSelected: isEffectiveSelected,
-                    isPlaying: isEffectivePlaying,
-                    isDragged: scope?.isDragged ?? false,
-                    prevDetached: scope?.prevDetached ?? false,
-                    nextDetached: scope?.nextDetached ?? false,
-                    squishTopReach: scope?.squishTopReach ?? 0.0,
-                    squishBottomReach: scope?.squishBottomReach ?? 0.0,
-                  ));
+            : NixListPhysics.computeSegmentedRadius(
+                index: scope?.index ?? 0,
+                totalCount: scope?.totalCount ?? 1,
+                isSelected: isEffectiveSelected,
+                isPlaying: isEffectivePlaying,
+                isDragged: scope?.isDragged ?? false,
+                prevDetached: scope?.prevDetached ?? false,
+                nextDetached: scope?.nextDetached ?? false,
+              ));
 
     // Dynamic background colors
     Color effectiveBgColor;
@@ -551,21 +570,30 @@ class _NixListItemState extends State<NixListItem>
             ? (widget.activeElevation ?? 0.0)
             : (widget.elevation ?? 0.0);
 
-    // Squish physics transforms from scope
-    final dispY = scope?.displacementOffsetY ?? 0.0;
-    final scaleX = scope?.scaleX ?? 1.0;
-    final scaleY = scope?.scaleY ?? 1.0;
-    final swipePullX = scope?.swipePullOffsetX ?? 0.0;
-    final swipePullY = scope?.swipePullOffsetY ?? 0.0;
-    final swipePullScaleY = scope?.swipePullScaleY ?? 1.0;
+    final List<BoxShadow>? effectiveShadow = isCurrentlySwiping
+        ? [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.14),
+              blurRadius: 10.0,
+              spreadRadius: 0.5,
+              offset: Offset(currentOffset > 0 ? -2.0 : 2.0, 3.0),
+            ),
+          ]
+        : (effectiveElevation > 0
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: effectiveElevation * 2,
+                  offset: Offset(0, effectiveElevation),
+                ),
+              ]
+            : null);
 
     return SizeTransition(
       sizeFactor: Tween<double>(begin: 1.0, end: 0.0).animate(_collapseAnimation),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final itemWidth = constraints.maxWidth;
-          final currentOffset =
-              _resetController.isAnimating ? _resetAnimation.value : _swipeOffset;
 
           Widget content = widget.child ??
               Row(
@@ -637,22 +665,14 @@ class _NixListItemState extends State<NixListItem>
 
           // Card surface
           final cardSurface = AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
+            duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
             padding: widget.contentPadding ?? widget.padding,
             decoration: BoxDecoration(
               color: effectiveBgColor,
               borderRadius: computedRadius,
               border: effectiveBorder,
-              boxShadow: effectiveElevation > 0
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: effectiveElevation * 2,
-                        offset: Offset(0, effectiveElevation),
-                      ),
-                    ]
-                  : null,
+              boxShadow: effectiveShadow,
             ),
             child: content,
           );
@@ -677,7 +697,9 @@ class _NixListItemState extends State<NixListItem>
               children: [
                 Positioned.fill(
                   child: ClipRRect(
-                    borderRadius: computedRadius,
+                    borderRadius: const BorderRadius.all(
+                      Radius.circular(NixListPhysics.detachedItemRadius),
+                    ),
                     child: _buildSwipeBackground(
                       colors: colors,
                       offset: currentOffset,
@@ -693,21 +715,7 @@ class _NixListItemState extends State<NixListItem>
             );
           }
 
-          // Apply Neighbour Squish Physics & Displacement Transforms
-          final totalScaleX = scaleX;
-          final totalScaleY = scaleY * swipePullScaleY;
-          final totalTransX = swipePullX;
-          final totalTransY = dispY + swipePullY;
-
-          return Transform.translate(
-            offset: Offset(totalTransX, totalTransY),
-            child: Transform.scale(
-              scaleX: totalScaleX,
-              scaleY: totalScaleY,
-              alignment: Alignment.center,
-              child: itemWidget,
-            ),
-          );
+          return itemWidget;
         },
       ),
     );
@@ -746,11 +754,13 @@ class _NixListItemState extends State<NixListItem>
   }) {
     if (offset > 0 && widget.leftAction != null) {
       final action = widget.leftAction!;
-      final progress = (offset / (itemWidth * action.threshold)).clamp(0.0, 1.5);
+      final progress =
+          (offset / (itemWidth * action.threshold)).clamp(0.0, 2.0);
       if (action.builder != null) {
         return action.builder!(context, progress);
       }
 
+      final isArmed = offset >= (itemWidth * action.threshold);
       final bgColor = action.backgroundColor ??
           (action.actionType == NixSwipeActionType.dismiss
               ? colors.error
@@ -760,34 +770,48 @@ class _NixListItemState extends State<NixListItem>
               ? colors.onError
               : colors.onPrimary);
 
-      return Container(
-        color: bgColor,
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      final slideProgress = progress.clamp(0.0, 1.0);
+      final slideX =
+          (1.0 - Curves.easeOutCubic.transform(slideProgress)) * -22.0;
+      final opacity = Curves.easeOut.transform(slideProgress);
+      final scale = isArmed ? 1.20 : (0.7 + slideProgress * 0.3);
+
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        color: isArmed
+            ? Color.lerp(bgColor, Colors.black, 0.08) ?? bgColor
+            : bgColor,
+        padding: const EdgeInsets.symmetric(horizontal: 22.0),
         alignment: Alignment.centerLeft,
         child: Opacity(
-          opacity: progress.clamp(0.0, 1.0),
-          child: Transform.scale(
-            scale: (0.7 + (progress.clamp(0.0, 1.0) * 0.3)),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (action.icon != null)
-                  IconTheme(
-                    data: IconThemeData(color: fgColor, size: 22.0),
-                    child: action.icon!,
-                  ),
-                if (action.label != null) ...[
-                  const SizedBox(width: 8),
-                  DefaultTextStyle(
-                    style: TextStyle(
-                      color: fgColor,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+          opacity: opacity,
+          child: Transform.translate(
+            offset: Offset(slideX, 0),
+            child: AnimatedScale(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.elasticOut,
+              scale: scale,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (action.icon != null)
+                    IconTheme(
+                      data: IconThemeData(color: fgColor, size: 24.0),
+                      child: action.icon!,
                     ),
-                    child: action.label!,
-                  ),
+                  if (action.label != null) ...[
+                    const SizedBox(width: 8),
+                    DefaultTextStyle(
+                      style: TextStyle(
+                        color: fgColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      child: action.label!,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -795,11 +819,12 @@ class _NixListItemState extends State<NixListItem>
     } else if (offset < 0 && widget.rightAction != null) {
       final action = widget.rightAction!;
       final progress =
-          (offset.abs() / (itemWidth * action.threshold)).clamp(0.0, 1.5);
+          (offset.abs() / (itemWidth * action.threshold)).clamp(0.0, 2.0);
       if (action.builder != null) {
         return action.builder!(context, progress);
       }
 
+      final isArmed = offset.abs() >= (itemWidth * action.threshold);
       final bgColor = action.backgroundColor ??
           (action.actionType == NixSwipeActionType.dismiss
               ? colors.error
@@ -809,34 +834,48 @@ class _NixListItemState extends State<NixListItem>
               ? colors.onError
               : colors.onSecondary);
 
-      return Container(
-        color: bgColor,
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      final slideProgress = progress.clamp(0.0, 1.0);
+      final slideX =
+          (1.0 - Curves.easeOutCubic.transform(slideProgress)) * 22.0;
+      final opacity = Curves.easeOut.transform(slideProgress);
+      final scale = isArmed ? 1.20 : (0.7 + slideProgress * 0.3);
+
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        color: isArmed
+            ? Color.lerp(bgColor, Colors.black, 0.08) ?? bgColor
+            : bgColor,
+        padding: const EdgeInsets.symmetric(horizontal: 22.0),
         alignment: Alignment.centerRight,
         child: Opacity(
-          opacity: progress.clamp(0.0, 1.0),
-          child: Transform.scale(
-            scale: (0.7 + (progress.clamp(0.0, 1.0) * 0.3)),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (action.label != null) ...[
-                  DefaultTextStyle(
-                    style: TextStyle(
-                      color: fgColor,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+          opacity: opacity,
+          child: Transform.translate(
+            offset: Offset(slideX, 0),
+            child: AnimatedScale(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.elasticOut,
+              scale: scale,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (action.label != null) ...[
+                    DefaultTextStyle(
+                      style: TextStyle(
+                        color: fgColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      child: action.label!,
                     ),
-                    child: action.label!,
-                  ),
-                  const SizedBox(width: 8),
+                    const SizedBox(width: 8),
+                  ],
+                  if (action.icon != null)
+                    IconTheme(
+                      data: IconThemeData(color: fgColor, size: 24.0),
+                      child: action.icon!,
+                    ),
                 ],
-                if (action.icon != null)
-                  IconTheme(
-                    data: IconThemeData(color: fgColor, size: 22.0),
-                    child: action.icon!,
-                  ),
-              ],
+              ),
             ),
           ),
         ),
