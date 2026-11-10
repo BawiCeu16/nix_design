@@ -24,11 +24,11 @@ enum NixSelectionMode {
 /// Features:
 /// - **Segmented Corner Radii**: Encapsulates items within a 16px container
 ///   with 12px outer corners, 6px inner/neighbor corners, and dynamic sealing.
-/// - **Neighbour Squish Physics**: Interactive drag & swipe proximity causing
-///   adjacent cards to organically squish, compress, and displace.
+/// - **Neighbour Squish Physics**: Interactive horizontal swipe gestures causing
+///   adjacent neighbor cards to organically squish, compress, reach, and displace.
 /// - **Independent Left/Right Dismiss**: Supports different swipe gestures and actions.
-/// - **Smooth Reorder Support**: Fluid drag-and-drop reordering with spring-driven
-///   slot opening, elevated floating layer, and neighbor squish displacement.
+/// - **Smooth Reorder Support**: Fluid drag-and-drop reordering with smooth
+///   slot opening, elevated floating layer, and decoupled clean slot movement.
 /// - **Selection & Active/Playing States**: Built-in support for single/multi
 ///   selection and media playback active states.
 class NixListView extends StatefulWidget {
@@ -480,14 +480,14 @@ class _NixListViewState extends State<NixListView>
     double swipePullY = 0.0;
     double swipePullScaleY = 1.0;
 
-    // Neighbour Squish Physics calculations during reorder drag
+    // Neighbour Squish Physics & Reach variables (active on SWIPE only)
     double squishTopReach = 0.0;
     double squishBottomReach = 0.0;
     double displacementOffsetY = 0.0;
     double scaleX = 1.0;
     double scaleY = 1.0;
 
-    // Calculate slot shift
+    // Calculate slot shift during reorder (Reorder opens slots cleanly, no squishing)
     double slotShiftFraction = 0.0;
     if (_draggedIndex != null && _hoverTargetIndex != null && !isDragged) {
       final from = _draggedIndex!;
@@ -498,57 +498,61 @@ class _NixListViewState extends State<NixListView>
       } else if (from > to && index < from && index >= to) {
         slotShiftFraction = 1.0;
       }
-
-      // Proximity reach calculations for neighbouring cards
-      if (widget.enableNeighbourSquish) {
-        final draggedPos =
-            _draggedInitialTop + (_draggedHeight / 2.0) + _dragOffsetY;
-        final itemPos = _getItemCenterY(index);
-        final reachFactor = NixListPhysics.computeReachFactor(
-          dragCenterY: draggedPos,
-          neighborCenterY: itemPos,
-        );
-
-        if (reachFactor > 0.0) {
-          final isDraggedAbove = draggedPos < itemPos;
-          final squishPush = NixListPhysics.computeDisplacementOffset(
-            reachFactor: reachFactor,
-            isDraggedAbove: isDraggedAbove,
-          );
-          displacementOffsetY = squishPush;
-
-          final squish = NixListPhysics.computeSquishScale(
-            reachFactor: reachFactor,
-          );
-          scaleX = squish.scaleX;
-          scaleY = squish.scaleY;
-
-          if (isDraggedAbove) {
-            squishTopReach = reachFactor;
-          } else {
-            squishBottomReach = reachFactor;
-          }
-        }
-      }
     }
 
+    // Neighbour Squish Physics, Spring Displacement, Pull Offset & Reach (SWIPE ONLY)
     if (widget.enableNeighbourSquish &&
         _activeSwipingIndex != null &&
         _activeSwipeOffset != 0.0) {
-      if (index == _activeSwipingIndex! - 1) {
-        // Neighbor above
+      final swipingIdx = _activeSwipingIndex!;
+      final offset = _activeSwipeOffset;
+
+      if (index == swipingIdx - 1) {
+        // Neighbor above the swiped card
+        final reach = NixListPhysics.computeReachFactor(
+          swipeOffset: offset,
+          threshold: 110.0,
+        );
+        final squish = NixListPhysics.computeSquishScale(
+          reachFactor: reach,
+        );
+        scaleX = squish.scaleX;
+        scaleY = squish.scaleY;
+        displacementOffsetY = NixListPhysics.computeDisplacementOffset(
+          reachFactor: reach,
+          isDraggedAbove: false,
+          maxDisplacement: 6.0,
+        );
+        squishBottomReach = reach;
+
         final pull = NixListPhysics.computeSwipeNeighborPull(
-          swipeOffset: _activeSwipeOffset,
+          swipeOffset: offset,
           itemWidth: 300.0,
           isNeighborAbove: true,
         );
         swipePullX = pull.offsetX;
         swipePullY = pull.offsetY;
         swipePullScaleY = pull.scaleY;
-      } else if (index == _activeSwipingIndex! + 1) {
-        // Neighbor below
+      } else if (index == swipingIdx + 1) {
+        // Neighbor below the swiped card
+        final reach = NixListPhysics.computeReachFactor(
+          swipeOffset: offset,
+          threshold: 110.0,
+        );
+        final squish = NixListPhysics.computeSquishScale(
+          reachFactor: reach,
+        );
+        scaleX = squish.scaleX;
+        scaleY = squish.scaleY;
+        displacementOffsetY = NixListPhysics.computeDisplacementOffset(
+          reachFactor: reach,
+          isDraggedAbove: true,
+          maxDisplacement: 6.0,
+        );
+        squishTopReach = reach;
+
         final pull = NixListPhysics.computeSwipeNeighborPull(
-          swipeOffset: _activeSwipeOffset,
+          swipeOffset: offset,
           itemWidth: 300.0,
           isNeighborAbove: false,
         );

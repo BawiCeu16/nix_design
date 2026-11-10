@@ -134,8 +134,8 @@ class NixReorderHandle extends StatelessWidget {
 /// - **Dynamic Segmented Corner Radii**: Seamlessly fits into 16px container
 ///   with 12px outer corners, 6px inner/neighbor corners, and dynamically morphs
 ///   into an isolated 14px card when selected, active, or playing.
-/// - **Neighbour Squish Physics**: Responds organically to drag proximity
-///   with spring-driven displacement and volume-preserving squash & stretch.
+/// - **Neighbour Squish Physics**: Responds organically to adjacent swipe gestures
+///   with spring-driven displacement, pull offset, reach, and volume-preserving squash & stretch.
 /// - **Independent Left/Right Dismiss**: Supports different actions, colors,
 ///   icons, and thresholds for left and right swipes.
 /// - **Multi-Select & Active/Playing States**: Supports batch selection mode
@@ -303,6 +303,20 @@ class _NixListItemState extends State<NixListItem>
     );
     _resetAnimation = const AlwaysStoppedAnimation(0.0);
 
+    _resetController.addListener(() {
+      if (_resetController.isAnimating) {
+        final scope = NixListScope.of(context);
+        scope?.onSwipeUpdate?.call(scope.index, _resetAnimation.value);
+      }
+    });
+
+    _resetController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        final scope = NixListScope.of(context);
+        scope?.onSwipeEnd?.call(scope.index);
+      }
+    });
+
     _collapseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 260),
@@ -376,9 +390,6 @@ class _NixListItemState extends State<NixListItem>
     double itemWidth,
   ) async {
     if (!widget.enabled || _isDismissed) return;
-
-    final scope = NixListScope.of(context);
-    scope?.onSwipeEnd?.call(scope.index);
 
     final action = _swipeOffset > 0 ? widget.leftAction : widget.rightAction;
     final thresholdPx = itemWidth * (action?.threshold ?? 0.35);

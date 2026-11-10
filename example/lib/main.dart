@@ -637,7 +637,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           child: const Text(
             '• Segmented Radii: 16px container, 12px outer, 6px inner.\n'
             '• Dynamic Sealing: Playing/selected cards morph to 14px isolated pills; neighbors dynamically adapt corners!\n'
-            '• Neighbour Squish Physics: Dragging compresses & stretches adjacent cards with volume preservation.\n'
+            '• Neighbour Squish Physics: Swiping compresses & stretches adjacent cards with volume preservation, spring displacement, reach & pull offset.\n'
             '• Independent Swipe: Swipe right to favorite, swipe left to delete.',
             style: TextStyle(fontSize: 12.5, height: 1.45),
           ),

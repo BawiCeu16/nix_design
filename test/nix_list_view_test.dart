@@ -328,9 +328,128 @@ void main() {
       // Item springs back and remains visible
       expect(find.text('Action Item'), findsOneWidget);
     });
+
+    testWidgets('Swipe gesture applies Neighbour Squish Physics, spring displacement, reach and pull offset to adjacent cards', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: true),
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 400,
+              child: NixListView(
+                children: [
+                  const NixListItem(title: Text('Item 0')),
+                  NixListItem(
+                    title: const Text('Item 1'),
+                    leftAction: NixSwipeAction(
+                      icon: const Icon(Icons.star),
+                      label: const Text('Star'),
+                      onTriggered: () {},
+                    ),
+                  ),
+                  const NixListItem(title: Text('Item 2')),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Swipe Item 1 to the right by moving past touch slop
+      final gesture = await tester.startGesture(tester.getCenter(find.text('Item 1')));
+      await gesture.moveBy(const Offset(25.0, 0.0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(60.0, 0.0));
+      await tester.pump();
+
+      // Inspect Item 0 (above)
+      final scope0 = tester.widget<NixListScope>(
+        find.byWidgetPredicate((w) => w is NixListScope && w.index == 0),
+      );
+      expect(scope0.squishBottomReach, greaterThan(0.0));
+      expect(scope0.scaleX, greaterThan(1.0));
+      expect(scope0.scaleY, lessThan(1.0));
+      expect(scope0.displacementOffsetY, lessThan(0.0));
+      expect(scope0.swipePullOffsetX, greaterThan(0.0));
+
+      // Inspect Item 2 (below)
+      final scope2 = tester.widget<NixListScope>(
+        find.byWidgetPredicate((w) => w is NixListScope && w.index == 2),
+      );
+      expect(scope2.squishTopReach, greaterThan(0.0));
+      expect(scope2.scaleX, greaterThan(1.0));
+      expect(scope2.scaleY, lessThan(1.0));
+      expect(scope2.displacementOffsetY, greaterThan(0.0));
+      expect(scope2.swipePullOffsetX, greaterThan(0.0));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
   });
 
   group('Reordering & NixReorderHandle', () {
+    testWidgets('Reorder does not apply squish physics or reach deformation to adjacent cards', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: true),
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 400,
+              child: NixListView(
+                reorderable: true,
+                onReorder: (oldIdx, newIdx) {},
+                children: const [
+                  NixListItem(
+                    title: Text('Row 0'),
+                    reorderHandle: NixReorderHandle(),
+                  ),
+                  NixListItem(
+                    title: Text('Row 1'),
+                    reorderHandle: NixReorderHandle(),
+                  ),
+                  NixListItem(
+                    title: Text('Row 2'),
+                    reorderHandle: NixReorderHandle(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final handleFinder = find.byType(NixReorderHandle).first;
+      final gesture = await tester.startGesture(tester.getCenter(handleFinder));
+      await tester.pump();
+      await gesture.moveBy(const Offset(0.0, 45.0));
+      await tester.pump();
+
+      // Verify Row 1 and Row 2 have NO squish, NO reach deformation, and NO displacement during reorder
+      final scope1 = tester.widget<NixListScope>(
+        find.byWidgetPredicate((w) => w is NixListScope && w.index == 1),
+      );
+      expect(scope1.scaleX, equals(1.0));
+      expect(scope1.scaleY, equals(1.0));
+      expect(scope1.squishTopReach, equals(0.0));
+      expect(scope1.squishBottomReach, equals(0.0));
+      expect(scope1.displacementOffsetY, equals(0.0));
+
+      final scope2 = tester.widget<NixListScope>(
+        find.byWidgetPredicate((w) => w is NixListScope && w.index == 2),
+      );
+      expect(scope2.scaleX, equals(1.0));
+      expect(scope2.scaleY, equals(1.0));
+      expect(scope2.squishTopReach, equals(0.0));
+      expect(scope2.squishBottomReach, equals(0.0));
+      expect(scope2.displacementOffsetY, equals(0.0));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
     testWidgets('Reorder handle triggers reorder drag and invokes onReorder', (tester) async {
       int? reorderedFrom;
       int? reorderedTo;

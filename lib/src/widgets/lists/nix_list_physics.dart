@@ -80,27 +80,40 @@ class NixListPhysics {
     );
   }
 
-  /// Calculates the reach factor (0.0 to 1.0) of a dragged item affecting
-  /// a neighbor card based on spatial proximity.
+  /// Calculates the reach factor (0.0 to 1.0) of an item affecting
+  /// an adjacent neighbor card.
+  ///
+  /// Can be calculated from horizontal swipe drag progress ([swipeOffset] and [threshold])
+  /// or from vertical spatial proximity ([dragCenterY] and [neighborCenterY]).
   static double computeReachFactor({
-    required double dragCenterY,
-    required double neighborCenterY,
+    double? swipeOffset,
+    double? threshold,
+    double? dragCenterY,
+    double? neighborCenterY,
     double reachDistance = defaultReachDistance,
   }) {
-    final distance = (dragCenterY - neighborCenterY).abs();
-    if (distance >= reachDistance) return 0.0;
-    return (1.0 - (distance / reachDistance)).clamp(0.0, 1.0);
+    if (swipeOffset != null) {
+      final t = threshold ?? 110.0;
+      if (t <= 0.0) return 0.0;
+      return (swipeOffset.abs() / t).clamp(0.0, 1.0);
+    }
+    if (dragCenterY != null && neighborCenterY != null) {
+      final distance = (dragCenterY - neighborCenterY).abs();
+      if (distance >= reachDistance) return 0.0;
+      return (1.0 - (distance / reachDistance)).clamp(0.0, 1.0);
+    }
+    return 0.0;
   }
 
   /// Computes the spring-driven vertical displacement offset of an adjacent card
-  /// pushed away by the approaching dragged card.
+  /// during swipe drag.
   static double computeDisplacementOffset({
     required double reachFactor,
     required bool isDraggedAbove,
-    double maxDisplacement = 10.0,
+    double maxDisplacement = 6.0,
   }) {
-    // If dragged card is above neighbor and moving down, push neighbor down.
-    // If dragged card is below neighbor and moving up, push neighbor up.
+    // If dragged card is above neighbor, displace neighbor down (+Y).
+    // If dragged card is below neighbor, displace neighbor up (-Y).
     final direction = isDraggedAbove ? 1.0 : -1.0;
     return direction * reachFactor * maxDisplacement;
   }
