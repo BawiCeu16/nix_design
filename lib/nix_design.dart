@@ -39,3 +39,11 @@ export 'src/widgets/feedback/nix_custom_popup.dart';
 export 'src/widgets/feedback/nix_dialog.dart';
 export 'src/widgets/feedback/nix_popup_menu.dart';
 export 'src/widgets/feedback/nix_snack_bar.dart';
+
+// Lists & Tiles
+export 'src/widgets/lists/nix_list_item.dart';
+export 'src/widgets/lists/nix_list_physics.dart';
+export 'src/widgets/lists/nix_list_view.dart';
+export 'src/widgets/lists/nix_music_equalizer.dart';
+export 'src/widgets/lists/nix_swipe_action.dart';
+

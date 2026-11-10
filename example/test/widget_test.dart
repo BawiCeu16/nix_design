@@ -87,4 +87,54 @@ void main() {
     // Menu is closed, and last selected text is updated
     expect(find.text('Profile'), findsNothing);
   });
+
+  testWidgets('Switching category tabs via NixBottomBar shows dedicated category views', (tester) async {
+    await tester.pumpWidget(const ExampleApp());
+    await tester.pumpAndSettle();
+
+    // Tap Lists tab
+    await tester.tap(find.text('Lists'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NixListView), findsOneWidget);
+    expect(find.text('Midnight City Waves'), findsOneWidget);
+
+    // Tap Feedback tab
+    await tester.tap(find.text('Feedback'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Floating Pill Snackbars'), findsOneWidget);
+
+    // Tap Widgets tab
+    await tester.tap(find.text('Widgets'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('NixButton Variants & Morphing'), findsOneWidget);
+  });
+
+  testWidgets('Search actionbutton opens search bottom sheet and navigates to selected component', (tester) async {
+    await tester.pumpWidget(const ExampleApp());
+    await tester.pumpAndSettle();
+
+    // Tap Search action button on NixBottomBar
+    await tester.tap(find.byIcon(Icons.search_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('NixButton'), findsOneWidget);
+
+    // Enter search text
+    await tester.enterText(find.byType(TextField), 'equalizer');
+    await tester.pumpAndSettle();
+
+    expect(find.text('NixMusicEqualizer'), findsOneWidget);
+
+    // Tap result to navigate to Lists category
+    await tester.tap(find.text('NixMusicEqualizer'));
+    await tester.pumpAndSettle();
+
+    // Verifies search sheet dismissed and navigated to Lists tab
+    expect(find.byType(NixListView), findsOneWidget);
+    expect(find.text('Midnight City Waves'), findsOneWidget);
+  });
 }
