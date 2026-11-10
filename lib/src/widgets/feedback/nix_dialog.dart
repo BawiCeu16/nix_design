@@ -62,70 +62,69 @@ class NixDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: padding,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  if (icon != null) ...[
-                    Container(
-                      width: 52.0,
-                      height: 52.0,
-                      decoration: ShapeDecoration(
-                        color: (nixTheme.primary ?? colors.primary).withValues(alpha: 0.12),
-                        shape: const CircleBorder(),
-                      ),
-                      child: Center(
-                        child: IconTheme(
-                          data: IconThemeData(
-                            color: nixTheme.primary ?? colors.primary,
-                            size: 26.0,
+            Flexible(
+              child: SingleChildScrollView(
+                padding: padding,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (icon != null) ...[
+                      Container(
+                        width: 52.0,
+                        height: 52.0,
+                        decoration: ShapeDecoration(
+                          color: (nixTheme.primary ?? colors.primary).withValues(alpha: 0.12),
+                          shape: const CircleBorder(),
+                        ),
+                        child: Center(
+                          child: IconTheme(
+                            data: IconThemeData(
+                              color: nixTheme.primary ?? colors.primary,
+                              size: 26.0,
+                            ),
+                            child: icon!,
                           ),
-                          child: icon!,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16.0),
-                  ],
-                  if (title != null) ...[
-                    DefaultTextStyle(
-                      style: (theme.textTheme.titleLarge ?? const TextStyle()).copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colors.onSurface,
+                      const SizedBox(height: 16.0),
+                    ],
+                    if (title != null) ...[
+                      DefaultTextStyle(
+                        style: (theme.textTheme.titleLarge ?? const TextStyle()).copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colors.onSurface,
+                        ),
+                        textAlign: TextAlign.center,
+                        child: title!,
                       ),
-                      textAlign: TextAlign.center,
-                      child: title!,
-                    ),
-                    const SizedBox(height: 10.0),
-                  ],
-                  if (content != null) ...[
-                    DefaultTextStyle(
-                      style: (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
-                        color: colors.onSurfaceVariant,
-                        height: 1.4,
+                      const SizedBox(height: 10.0),
+                    ],
+                    if (content != null) ...[
+                      DefaultTextStyle(
+                        style: (theme.textTheme.bodyMedium ?? const TextStyle()).copyWith(
+                          color: colors.onSurfaceVariant,
+                          height: 1.4,
+                        ),
+                        textAlign: TextAlign.center,
+                        child: content!,
                       ),
-                      textAlign: TextAlign.center,
-                      child: content!,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (actions != null && actions!.isNotEmpty) ...[
-              Padding(
-                padding: actionsPadding,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    for (int i = 0; i < actions!.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 8.0),
-                      Flexible(child: actions![i]),
                     ],
                   ],
                 ),
               ),
-            ],
+            ),
+            if (actions != null && actions!.isNotEmpty)
+              Padding(
+                padding: actionsPadding,
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: actions!,
+                ),
+              ),
           ],
         ),
       ),

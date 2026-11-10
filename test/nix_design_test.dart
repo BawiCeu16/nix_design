@@ -343,6 +343,96 @@ void main() {
 
       expect(switchVal, isTrue);
     });
+
+    testWidgets('NixSwitch provides accessible 48x48 tap target and responds to taps outside exact visual pill', (tester) async {
+      bool switchVal = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  return NixSwitch(
+                    value: switchVal,
+                    onChanged: (val) => setState(() => switchVal = val),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final switchCenter = tester.getCenter(find.byType(NixSwitch));
+
+      // Visual track height is 28.0 (top is center.dy - 14, bottom is center.dy + 14).
+      // Tap target is 48.0 high (extends to center.dy - 24 and center.dy + 24).
+      // Tap 18 pixels above the center (outside visual track of 14px, but inside 24px tap target):
+      await tester.tapAt(Offset(switchCenter.dx, switchCenter.dy - 18));
+      await tester.pumpAndSettle();
+
+      expect(switchVal, isTrue);
+
+      // Tap 18 pixels below the center:
+      await tester.tapAt(Offset(switchCenter.dx, switchCenter.dy + 18));
+      await tester.pumpAndSettle();
+
+      expect(switchVal, isFalse);
+    });
+
+    testWidgets('NixSwitch smoothly animates track and thumb colors', (tester) async {
+      bool switchVal = false;
+      const activeTrack = Colors.blue;
+      const inactiveTrack = Colors.grey;
+      const activeThumb = Colors.white;
+      const inactiveThumb = Colors.black;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  return NixSwitch(
+                    value: switchVal,
+                    activeTrackColor: activeTrack,
+                    inactiveTrackColor: inactiveTrack,
+                    activeColor: activeThumb,
+                    inactiveColor: inactiveThumb,
+                    duration: const Duration(milliseconds: 300),
+                    onChanged: (val) => setState(() => switchVal = val),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Toggle switch
+      await tester.tap(find.byType(NixSwitch));
+      await tester.pump(); // Start animation
+      await tester.pump(const Duration(milliseconds: 150)); // Midpoint
+
+      // Verify animation is actively running and colors are intermediate
+      final containers = tester.widgetList<Container>(
+        find.descendant(of: find.byType(NixSwitch), matching: find.byType(Container)),
+      ).toList();
+
+      final trackContainer = containers.first;
+      final trackColor = (trackContainer.decoration as ShapeDecoration).color!;
+      // Track color should be lerped midway between grey and blue
+      expect(trackColor, isNot(equals(inactiveTrack)));
+      expect(trackColor, isNot(equals(activeTrack)));
+
+      await tester.pumpAndSettle(); // Settle animation
+      final finalContainers = tester.widgetList<Container>(
+        find.descendant(of: find.byType(NixSwitch), matching: find.byType(Container)),
+      ).toList();
+      final finalTrackColor = (finalContainers.first.decoration as ShapeDecoration).color!;
+      expect(finalTrackColor, equals(activeTrack));
+    });
   });
 
   group('NixChip & NixFilterChip', () {
@@ -883,7 +973,7 @@ void main() {
         matching: find.byType(Padding),
       ).first;
       final shrunkMargin = tester.widget<Padding>(paddingFinder).padding as EdgeInsets;
-      expect(shrunkMargin.bottom, closeTo(16.0 * 0.65, 0.1));
+      expect(shrunkMargin.bottom, closeTo(14.0 * 0.65, 0.1));
 
       // Release drag gesture
       await gesture.up();
@@ -896,7 +986,7 @@ void main() {
       // Bar has un-shrunk back to 1.0 scale and full margin!
       expect(tester.widget<Transform>(scaleFinder).transform.storage[0], equals(1.0));
       final unshrunkMargin = tester.widget<Padding>(paddingFinder).padding as EdgeInsets;
-      expect(unshrunkMargin.bottom, equals(16.0));
+      expect(unshrunkMargin.bottom, equals(14.0));
       expect(selectedIndex, equals(1));
     });
   });
@@ -1127,6 +1217,66 @@ void main() {
 
       NixSnackBar.dismiss();
       await tester.pumpAndSettle();
+    });
+  });
+
+  group('NixDialog', () {
+    testWidgets('renders long content without RenderFlex overflow and scrolls smoothly', (tester) async {
+      tester.view.physicalSize = const Size(360, 500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                return ElevatedButton(
+                  onPressed: () {
+                    showNixDialog<void>(
+                      context: context,
+                      builder: (ctx) => NixDialog(
+                        icon: const Icon(Icons.info),
+                        title: const Text('Long Dialog Title'),
+                        content: const Text(
+                          'Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10\n'
+                          'Line 11\nLine 12\nLine 13\nLine 14\nLine 15\nLine 16\nLine 17\nLine 18\nLine 19\nLine 20\n'
+                          'Line 21\nLine 22\nLine 23\nLine 24\nLine 25\nLine 26\nLine 27\nLine 28\nLine 29\nLine 30',
+                        ),
+                        actions: [
+                          NixButton.text(
+                            label: const Text('Cancel'),
+                            onPressed: () => Navigator.of(ctx).pop(),
+                          ),
+                          NixButton.filled(
+                            label: const Text('Confirm'),
+                            onPressed: () => Navigator.of(ctx).pop(),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  child: const Text('Open Dialog'),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(NixDialog), findsOneWidget);
+      expect(find.text('Long Dialog Title'), findsOneWidget);
+      expect(find.text('Confirm'), findsOneWidget);
+
+      await tester.tap(find.text('Confirm'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NixDialog), findsNothing);
     });
   });
 }

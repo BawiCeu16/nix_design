@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../../theme/nix_geometry.dart';
 import '../../theme/nix_size.dart';
 import '../../theme/nix_theme_data.dart';
@@ -78,11 +80,12 @@ class NixSnackBar {
     late final OverlayEntry overlayEntry;
     final controller = NixSnackBarController._();
 
+    final snackBarKey = UniqueKey();
     overlayEntry = OverlayEntry(
       builder: (ctx) => InheritedTheme.captureAll(
         context,
         _NixSnackBarWidget(
-          key: UniqueKey(),
+          key: snackBarKey,
           message: message,
           content: content,
           icon: icon,
@@ -140,8 +143,8 @@ class NixSnackBar {
       behavior: SnackBarBehavior.floating,
       shape: NixGeometry.stadiumBorder,
       backgroundColor: backgroundColor,
-      margin: margin ?? const EdgeInsets.all(16.0),
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+      margin: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
       duration: duration,
       content: content,
       action: action,
@@ -215,19 +218,17 @@ class _NixSnackBarWidgetState extends State<_NixSnackBarWidget>
     // If bottom: begins at Offset(0, 3.5) below screen, slides UP into place.
     // If top: begins at Offset(0, -3.5) above screen, slides DOWN into place.
     final beginOffset = widget.position == NixSnackBarPosition.top
-        ? const Offset(0.0, -3.5)
-        : const Offset(0.0, 3.5);
+        ? const Offset(0.0, -3.0)
+        : const Offset(0.0, 3.0);
 
-    _slideAnimation = Tween<Offset>(
-      begin: beginOffset,
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
-    );
+    _slideAnimation = Tween<Offset>(begin: beginOffset, end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+        );
 
     _controller.forward();
 
@@ -269,28 +270,29 @@ class _NixSnackBarWidgetState extends State<_NixSnackBarWidget>
     final isDark = colors.brightness == Brightness.dark;
     final ext = theme.extension<NixThemeData>();
 
-    final bg = widget.backgroundColor ??
+    final bg =
+        widget.backgroundColor ??
         ext?.surfaceContainerHigh ??
         (isDark
             ? (nixTheme.surfaceContainerHigh ?? colors.surfaceContainerHighest)
             : colors.inverseSurface);
 
-    final fg = widget.textColor ??
+    final fg =
+        widget.textColor ??
         ext?.onSurface ??
         (isDark
             ? (nixTheme.onSurface ?? colors.onSurface)
             : colors.onInverseSurface);
 
-    final actColor = widget.actionColor ??
+    final actColor =
+        widget.actionColor ??
         ext?.primary ??
-        (isDark
-            ? (nixTheme.primary ?? colors.primary)
-            : colors.inversePrimary);
+        (isDark ? (nixTheme.primary ?? colors.primary) : colors.inversePrimary);
 
     final isTop = widget.position == NixSnackBarPosition.top;
     final defaultMargin = isTop
-        ? const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0)
-        : const EdgeInsets.only(bottom: 24.0, left: 16.0, right: 16.0);
+        ? const EdgeInsets.only(top: 4.0, left: 16.0, right: 16.0)
+        : const EdgeInsets.only(bottom: 12.0, left: 16.0, right: 16.0);
     final effectiveMargin = widget.margin ?? defaultMargin;
 
     Widget pillContent = Row(
@@ -344,7 +346,8 @@ class _NixSnackBarWidgetState extends State<_NixSnackBarWidget>
       shadowColor: colors.shadow.withValues(alpha: 0.22),
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: widget.padding ??
+        padding:
+            widget.padding ??
             const EdgeInsets.symmetric(horizontal: 18.0, vertical: 12.0),
         child: pillContent,
       ),

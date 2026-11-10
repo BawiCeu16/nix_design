@@ -35,5 +35,7 @@ export 'src/widgets/navigation/nix_tab_bar.dart';
 export 'src/widgets/surfaces/nix_card.dart';
 
 // Feedback & Overlays
+export 'src/widgets/feedback/nix_custom_popup.dart';
 export 'src/widgets/feedback/nix_dialog.dart';
+export 'src/widgets/feedback/nix_popup_menu.dart';
 export 'src/widgets/feedback/nix_snack_bar.dart';

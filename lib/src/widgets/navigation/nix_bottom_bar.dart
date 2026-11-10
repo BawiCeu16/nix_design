@@ -82,31 +82,9 @@ class NixBottomBarItem {
 /// dynamic item widths, responsive screen-size scaling, separate companion action buttons
 /// (left or right), and scroll-to-hide/shrink support.
 ///
-/// ### Scaffold Integration & Best Practices:
+/// ### Scaffold & Suggestion:
 /// When using [NixBottomBar] as the `bottomNavigationBar` in a [Scaffold],
-/// always set `extendBody: true` on the [Scaffold]. This allows scrollable body content
-/// to extend and flow smoothly underneath the floating pill navigation bar.
-///
-/// **Note on Stack vs. Scaffold**:
-/// Placing [NixBottomBar] manually in a [Stack] over the body is **not recommended**.
-/// Using [Scaffold.bottomNavigationBar] with `extendBody: true` is the idiomatic Flutter
-/// approach that ensures proper keyboard insets handling (`resizeToAvoidBottomInset`),
-/// system gesture navigation insets, and correct accessibility focus traversal.
-///
-/// ```dart
-/// Scaffold(
-///   extendBody: true, // Content scrolls underneath the floating navigation pill
-///   bottomNavigationBar: NixBottomBar(
-///     currentIndex: _currentIndex,
-///     onTap: (index) => setState(() => _currentIndex = index),
-///     items: const [ ... ],
-///   ),
-///   body: ListView(
-///     padding: const EdgeInsets.only(bottom: 96.0), // Ensure last items scroll above the bar
-///     children: [ ... ],
-///   ),
-/// )
-/// ```
+/// always set `extendBody: true` on the [Scaffold].
 class NixBottomBar extends StatefulWidget {
   const NixBottomBar({
     super.key,
@@ -134,8 +112,8 @@ class NixBottomBar extends StatefulWidget {
     this.selectedItemColor,
     this.unselectedItemColor,
     this.indicatorColor,
-    this.elevation = 8.0,
-    this.margin = const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
+    this.elevation = 0.0,
+    this.margin = const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 14.0),
     this.padding = const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
     this.itemPadding = const EdgeInsets.symmetric(
       horizontal: 6.0,
@@ -368,13 +346,17 @@ class _NixBottomBarState extends State<NixBottomBar>
   }
 
   void _unshrink() {
-    if (_hideController.value > 0.0 || _hideController.status == AnimationStatus.forward) {
+    if (_hideController.value > 0.0 ||
+        _hideController.status == AnimationStatus.forward) {
       _lastUnshrinkTime = DateTime.now();
       _hideController.reverse();
     }
   }
 
-  EdgeInsetsGeometry _getReducedMargin(EdgeInsetsGeometry margin, double factor) {
+  EdgeInsetsGeometry _getReducedMargin(
+    EdgeInsetsGeometry margin,
+    double factor,
+  ) {
     if (margin is EdgeInsets) {
       return EdgeInsets.only(
         left: margin.left * factor,
@@ -396,7 +378,8 @@ class _NixBottomBarState extends State<NixBottomBar>
   void _onScroll() {
     if (_scrollController == null || !_scrollController!.hasClients) return;
     if (_lastUnshrinkTime != null &&
-        DateTime.now().difference(_lastUnshrinkTime!) < const Duration(milliseconds: 500)) {
+        DateTime.now().difference(_lastUnshrinkTime!) <
+            const Duration(milliseconds: 500)) {
       return;
     }
     final position = _scrollController!.position;
@@ -658,7 +641,9 @@ class _NixBottomBarState extends State<NixBottomBar>
           }
 
           final minScale = widget.shrinkScale.clamp(0.5, 1.0);
-          final scale = widget.shrinkOnScroll ? (1.0 - ((1.0 - minScale) * t)) : 1.0;
+          final scale = widget.shrinkOnScroll
+              ? (1.0 - ((1.0 - minScale) * t))
+              : 1.0;
           final translateY = widget.hideOnScroll ? (120.0 * t) : 0.0;
           final opacity = widget.hideOnScroll ? (1.0 - t).clamp(0.0, 1.0) : 1.0;
 

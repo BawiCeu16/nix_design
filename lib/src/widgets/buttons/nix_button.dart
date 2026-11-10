@@ -507,7 +507,7 @@ class _NixButtonState extends State<NixButton>
         }
       }
       if (widget.label != null) {
-        children.add(widget.label!);
+        children.add(Flexible(child: widget.label!));
       }
       content = Row(
         mainAxisSize: MainAxisSize.min,

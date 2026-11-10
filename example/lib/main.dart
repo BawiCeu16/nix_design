@@ -13,7 +13,11 @@ class ExampleApp extends StatelessWidget {
     return MaterialApp(
       title: 'Nix Design Example',
       themeMode: ThemeMode.dark,
-      theme: ThemeData(colorSchemeSeed: Colors.blue, useMaterial3: true),
+      theme: ThemeData(
+        colorSchemeSeed: Colors.green,
+        useMaterial3: true,
+        splashFactory: NoSplash.splashFactory,
+      ),
       home: const ExampleHomePage(),
     );
   }
@@ -31,6 +35,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   int _segmentedValue = 0;
   bool _switchValue = true;
   bool _filterSelected = true;
+  String? _selectedPopupItem;
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -77,11 +82,48 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             },
           ),
           const SizedBox(width: 8),
+          NixPopupMenu<String>(
+            maxWidth: 200,
+            onSelected: (val) {
+              setState(() => _selectedPopupItem = val);
+              debugPrint('AppBar popup selected: $val');
+            },
+            items: const [
+              NixPopupMenuItem(
+                value: 'profile',
+                label: Text('Profile'),
+                icon: Icon(Icons.person_outline),
+              ),
+              NixPopupMenuItem(
+                value: 'settings',
+                label: Text('Settings'),
+                icon: Icon(Icons.settings_outlined),
+                trailing: Text('⌘,'),
+              ),
+              NixPopupMenuItem(
+                value: 'docs',
+                label: Text('Documentation'),
+                icon: Icon(Icons.menu_book_outlined),
+              ),
+              NixPopupMenuItem.destructive(
+                value: 'sign_out',
+                label: Text('Sign Out'),
+                icon: Icon(Icons.logout_rounded),
+              ),
+            ],
+            child: const NixIconButton.tonal(
+              icon: Icon(Icons.more_vert_rounded),
+              tooltip: 'Menu (Tap or Hold & Drag)',
+              onPressed: null,
+            ),
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       bottomNavigationBar: NixBottomBar(
         scrollController: _scrollController,
         currentIndex: _navIndex,
+
         onTap: (index) => setState(() => _navIndex = index),
         onLongPress: (index) {
           final titles = ['Home', 'Widgets', 'Docs', 'Notifications'];
@@ -89,14 +131,15 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           showNixDialog<void>(
             context: context,
             builder: (ctx) => NixDialog(
-              icon: const Icon(Icons.touch_app_rounded),
-              title: Text('$name Options'),
-              content: Text(
-                'Long-pressed the "$name" item! All navigation items share dynamic equal width and support onLongPress for dialogs or popups.',
-              ),
+              title: Text("Long press $name"),
+              content: Text("Long press $name"),
               actions: [
+                NixButton.text(
+                  label: const Text('Close'),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                ),
                 NixButton.filled(
-                  label: const Text('Dismiss'),
+                  label: const Text('Confirm'),
                   onPressed: () => Navigator.of(ctx).pop(),
                 ),
               ],
@@ -122,7 +165,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             activeIcon: Icon(Icons.notifications_rounded),
           ),
         ],
-        action: NixIconButton.filled(
+        action: NixIconButton.tonal(
           size: NixSize.large,
           icon: const Icon(Icons.search_rounded),
           tooltip: 'Search',
@@ -238,23 +281,23 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           const SizedBox(height: 20),
 
           // NixIconButton & NixButtonGroup
-          Row(
+          Wrap(
+            spacing: 8.0,
+            runSpacing: 8.0,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               NixIconButton.filled(
                 icon: const Icon(Icons.thumb_up_rounded),
                 onPressed: () {},
               ),
-              const SizedBox(width: 8),
               NixIconButton.tonal(
                 icon: const Icon(Icons.share_rounded),
                 onPressed: () {},
               ),
-              const SizedBox(width: 8),
               NixIconButton.outlined(
                 icon: const Icon(Icons.bookmark_border_rounded),
                 onPressed: () {},
               ),
-              const SizedBox(width: 16),
               NixButtonGroup(
                 children: [
                   NixButton.ghost(
@@ -282,6 +325,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           Row(
             children: [
               NixSwitch(
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 value: _switchValue,
                 onChanged: (val) => setState(() => _switchValue = val),
               ),
@@ -328,6 +372,135 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             variant: NixCardVariant.outlined,
             onTap: () {},
             child: const Text('NixCard outlined variant'),
+          ),
+          const SizedBox(height: 20),
+
+          // NixPopupMenu Showcase: Dual Gesture & Dynamic Segmented Corners
+          NixCard(
+            variant: NixCardVariant.filled,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.touch_app_rounded),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Custom Popup Menu (Dual Gesture & Dynamic Corners)',
+                        style: Theme.of(context).textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Supports Tap to open, or Hold, Drag & Release directly to an item.\n'
+                  'Dynamic segmented corners: 16px container (4px pad, 2px gap), top 12px / bottom 6px on first item, 6px inner, and top 6px / bottom 12px on last item.',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12.0,
+                  runSpacing: 12.0,
+                  children: [
+                    NixPopupMenu<String>(
+                      onSelected: (val) {
+                        setState(() => _selectedPopupItem = val);
+                        debugPrint('Action selected: $val');
+                      },
+                      items: const [
+                        NixPopupMenuItem(
+                          value: 'edit',
+                          label: Text('Edit Document'),
+                          icon: Icon(Icons.edit_outlined),
+                        ),
+                        NixPopupMenuItem(
+                          value: 'share',
+                          label: Text('Share Link'),
+                          icon: Icon(Icons.share_outlined),
+                          trailing: Text('⌘S'),
+                        ),
+                        NixPopupMenuItem(
+                          value: 'duplicate',
+                          label: Text('Duplicate'),
+                          icon: Icon(Icons.copy_rounded),
+                        ),
+                        NixPopupMenuItem.destructive(
+                          value: 'delete',
+                          label: Text('Delete Item'),
+                          icon: Icon(Icons.delete_outline_rounded),
+                        ),
+                      ],
+                      child: const NixButton.filled(
+                        label: Text('Hold, Drag & Release Menu'),
+                        icon: Icon(Icons.menu_rounded),
+                        onPressed: null,
+                      ),
+                    ),
+                    NixPopupMenu<String>(
+                      onSelected: (val) {
+                        setState(() => _selectedPopupItem = val);
+                        debugPrint('Adaptive item selected: $val');
+                      },
+                      items: const [
+                        NixPopupMenuItem(
+                          value: 'adaptive',
+                          label: Text('Export project to another workspace'),
+                          icon: Icon(Icons.drive_file_move_outlined),
+                        ),
+                        NixPopupMenuItem(
+                          value: 'ellipsis',
+                          label: Text(
+                            'Long item clamped with ellipsis',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          icon: Icon(Icons.more_horiz_rounded),
+                        ),
+                      ],
+                      child: const NixButton.tonal(
+                        label: Text('Adaptive Width Menu'),
+                        onPressed: null,
+                      ),
+                    ),
+                  ],
+                ),
+                if (_selectedPopupItem != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer
+                          .withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline_rounded,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Last selected: $_selectedPopupItem',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
           const SizedBox(height: 20),
         ],
