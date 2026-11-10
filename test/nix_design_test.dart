@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nix_design/nix_design.dart';
 
@@ -432,6 +433,164 @@ void main() {
       ).toList();
       final finalTrackColor = (finalContainers.first.decoration as ShapeDecoration).color!;
       expect(finalTrackColor, equals(activeTrack));
+    });
+
+    testWidgets('NixSwitch triggers real-time haptic feedback while holding and dragging across threshold', (tester) async {
+      final List<String> hapticCalls = [];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (MethodCall methodCall) async {
+          if (methodCall.method == 'HapticFeedback.vibrate') {
+            hapticCalls.add(methodCall.arguments as String);
+          }
+          return null;
+        },
+      );
+
+      bool switchVal = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  return NixSwitch(
+                    value: switchVal,
+                    onChanged: (val) => setState(() => switchVal = val),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final center = tester.getCenter(find.byType(NixSwitch));
+      final gesture = await tester.startGesture(center);
+      await tester.pump();
+
+      // Win arena past touch slop
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+
+      // Drag right by 20px (crosses 0.5 threshold from off to on)
+      await gesture.moveBy(const Offset(20, 0));
+      await tester.pump();
+      expect(hapticCalls.length, equals(1));
+      expect(hapticCalls.last, equals('HapticFeedbackType.lightImpact'));
+
+      // Hold and drag left back by 30px (crosses 0.5 threshold back from on to off in real-time)
+      await gesture.moveBy(const Offset(-30, 0));
+      await tester.pump();
+      expect(hapticCalls.length, equals(2));
+
+      // Drag right again by 30px (crosses threshold from off to on again in real-time)
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      expect(hapticCalls.length, equals(3));
+
+      // Release gesture
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(switchVal, isTrue);
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
+    testWidgets('NixSwitch respects enableFeedback: false', (tester) async {
+      final List<String> hapticCalls = [];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (MethodCall methodCall) async {
+          if (methodCall.method == 'HapticFeedback.vibrate') {
+            hapticCalls.add(methodCall.arguments as String);
+          }
+          return null;
+        },
+      );
+
+      bool switchVal = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  return NixSwitch(
+                    value: switchVal,
+                    enableFeedback: false,
+                    onChanged: (val) => setState(() => switchVal = val),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(NixSwitch));
+      await tester.pumpAndSettle();
+
+      expect(switchVal, isTrue);
+      expect(hapticCalls, isEmpty);
+
+      // Drag with enableFeedback: false
+      final center = tester.getCenter(find.byType(NixSwitch));
+      final gesture = await tester.startGesture(center);
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(hapticCalls, isEmpty);
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
+    testWidgets('NixSwitch responds to Space and Enter keyboard keys', (tester) async {
+      bool switchVal = false;
+      final focusNode = FocusNode();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  return NixSwitch(
+                    focusNode: focusNode,
+                    autofocus: true,
+                    value: switchVal,
+                    onChanged: (val) => setState(() => switchVal = val),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      focusNode.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(switchVal, isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(switchVal, isFalse);
+
+      focusNode.dispose();
     });
   });
 
@@ -990,6 +1149,58 @@ void main() {
       final unshrunkMargin = tester.widget<Padding>(paddingFinder).padding as EdgeInsets;
       expect(unshrunkMargin.bottom, equals(14.0));
       expect(selectedIndex, equals(1));
+    });
+
+    testWidgets('enableShrink: false disables all scale and margin shrinking on scroll', (tester) async {
+      final scrollController = ScrollController();
+      int selectedIndex = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: StatefulBuilder(
+              builder: (context, setState) {
+                return NixBottomBar(
+                  scrollController: scrollController,
+                  hideOnScroll: false,
+                  enableShrink: false,
+                  shrinkOnScroll: true,
+                  shrinkScale: 0.92,
+                  currentIndex: selectedIndex,
+                  onTap: (idx) => setState(() => selectedIndex = idx),
+                  items: const [
+                    NixBottomBarItem(icon: Icon(Icons.home), label: 'Home'),
+                    NixBottomBarItem(icon: Icon(Icons.person), label: 'Profile'),
+                  ],
+                );
+              },
+            ),
+            body: ListView.builder(
+              controller: scrollController,
+              itemCount: 50,
+              itemBuilder: (ctx, i) => ListTile(title: Text('Item $i')),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Scroll down by dragging
+      final gesture = await tester.startGesture(tester.getCenter(find.text('Item 2')));
+      await gesture.moveBy(const Offset(0, -300));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // With enableShrink: false and hideOnScroll: false, scale remains 1.0 and margin does not compress
+      final transforms = tester.widgetList<Transform>(
+        find.descendant(of: find.byType(NixBottomBar), matching: find.byType(Transform)),
+      );
+      for (final t in transforms) {
+        expect(t.transform.storage[0], equals(1.0));
+      }
+
+      await gesture.up();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('NixBottomBarStyle.separated with 2 or 3 items hugs items at BottomLeft and places ActionButton at BottomRight', (tester) async {

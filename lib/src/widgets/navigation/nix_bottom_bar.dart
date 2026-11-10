@@ -116,6 +116,7 @@ class NixBottomBar extends StatefulWidget {
     this.actionSpacing = 10.0,
     this.scrollController,
     this.hideOnScroll = true,
+    this.enableShrink = true,
     this.shrinkOnScroll = true,
     this.shrinkScale = 0.92,
     this.labelBehavior = NixNavigationLabelBehavior.alwaysShow,
@@ -161,6 +162,7 @@ class NixBottomBar extends StatefulWidget {
     this.actionSpacing = 10.0,
     this.scrollController,
     this.hideOnScroll = true,
+    this.enableShrink = true,
     this.shrinkOnScroll = true,
     this.shrinkScale = 0.92,
     this.labelBehavior = NixNavigationLabelBehavior.alwaysShow,
@@ -244,6 +246,10 @@ class NixBottomBar extends StatefulWidget {
 
   /// Whether to slide the bar down off-screen when scrolling downwards.
   final bool hideOnScroll;
+
+  /// Whether shrinking the navigation bar on scroll is enabled. Defaults to `true`.
+  /// Set to `false` to disable all scale shrinking and margin reduction when scrolling.
+  final bool enableShrink;
 
   /// Whether to shrink the bar scale/size when scrolling downwards.
   final bool shrinkOnScroll;
@@ -332,6 +338,7 @@ class _NixBottomBarState extends State<NixBottomBar>
   int? _lastHapticIndex;
   ScrollController? _scrollController;
   DateTime? _lastUnshrinkTime;
+  bool get _effectiveShrink => widget.enableShrink && widget.shrinkOnScroll;
 
   @override
   void initState() {
@@ -450,7 +457,7 @@ class _NixBottomBarState extends State<NixBottomBar>
     final position = _scrollController!.position;
 
     if (position.userScrollDirection == ScrollDirection.reverse) {
-      if ((widget.hideOnScroll || widget.shrinkOnScroll) &&
+      if ((widget.hideOnScroll || _effectiveShrink) &&
           _hideController.status != AnimationStatus.forward &&
           _hideController.value < 1.0) {
         _hideController.forward();
@@ -761,7 +768,8 @@ class _NixBottomBarState extends State<NixBottomBar>
     );
 
     // 6. Scroll to hide & shrink animations:
-    if (widget.scrollController != null) {
+    if (widget.scrollController != null &&
+        (widget.hideOnScroll || _effectiveShrink)) {
       return AnimatedBuilder(
         animation: _hideAnimation,
         builder: (context, child) {
@@ -771,13 +779,15 @@ class _NixBottomBarState extends State<NixBottomBar>
           }
 
           final minScale = widget.shrinkScale.clamp(0.5, 1.0);
-          final scale = widget.shrinkOnScroll
+          final scale = _effectiveShrink
               ? (1.0 - ((1.0 - minScale) * t))
               : 1.0;
           final translateY = widget.hideOnScroll ? (120.0 * t) : 0.0;
           final opacity = widget.hideOnScroll ? (1.0 - t).clamp(0.0, 1.0) : 1.0;
 
-          final reducedMargin = _getReducedMargin(widget.margin, 0.65);
+          final reducedMargin = _effectiveShrink
+              ? _getReducedMargin(widget.margin, 0.65)
+              : widget.margin;
           final currentMargin =
               EdgeInsetsGeometry.lerp(widget.margin, reducedMargin, t) ??
               widget.margin;

@@ -107,6 +107,7 @@ class NixSwitchTile extends StatelessWidget {
     this.splashColor,
     this.highlightColor,
     this.hoverColor,
+    this.enableFeedback = true,
     this.switchKey,
     this.child,
   });
@@ -205,6 +206,11 @@ class NixSwitchTile extends StatelessWidget {
   /// Ink hover color when mouse cursor hovers over the tile.
   final Color? hoverColor;
 
+  /// Whether to provide haptic feedback when toggled.
+  ///
+  /// Defaults to `true`.
+  final bool enableFeedback;
+
   /// Optional Key passed directly to the internal [NixSwitch] widget.
   final Key? switchKey;
 
@@ -215,9 +221,17 @@ class NixSwitchTile extends StatelessWidget {
 
   void _handleTap() {
     if (!isInteractive) return;
+    if (enableFeedback) {
+      HapticFeedback.lightImpact();
+    }
     onChanged!(!value);
     onTap?.call();
-    HapticFeedback.lightImpact();
+  }
+
+  void _handleSwitchChanged(bool newValue) {
+    if (!isInteractive) return;
+    onChanged!(newValue);
+    onTap?.call();
   }
 
   BorderRadius _computeRadius(BuildContext context) {
@@ -320,7 +334,8 @@ class NixSwitchTile extends StatelessWidget {
     final switchWidget = NixSwitch(
       key: switchKey,
       value: value,
-      onChanged: isInteractive ? (val) => _handleTap() : null,
+      enableFeedback: enableFeedback,
+      onChanged: isInteractive ? _handleSwitchChanged : null,
       activeColor: activeColor,
       inactiveColor: inactiveColor,
       activeTrackColor: activeTrackColor,

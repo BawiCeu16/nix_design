@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../theme/nix_geometry.dart';
 import '../../theme/nix_theme_data.dart';
@@ -18,6 +19,7 @@ class NixSwitch extends StatefulWidget {
     this.materialTapTargetSize,
     this.focusNode,
     this.autofocus = false,
+    this.enableFeedback = true,
     this.duration,
     this.curve,
   });
@@ -56,6 +58,12 @@ class NixSwitch extends StatefulWidget {
   /// Whether to autofocus this switch.
   final bool autofocus;
 
+  /// Whether to provide haptic feedback when toggled or when dragged across the threshold.
+  ///
+  /// Defaults to `true`. Provides real-time haptic feedback as the user holds and drags
+  /// the thumb past the on/off threshold.
+  final bool enableFeedback;
+
   /// Duration of the toggle and color change animation.
   ///
   /// Defaults to [NixThemeData.animationDuration] (200ms).
@@ -76,6 +84,7 @@ class _NixSwitchState extends State<NixSwitch>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late CurvedAnimation _curvedAnimation;
+  bool _dragIsOn = false;
 
   @override
   void initState() {
@@ -124,31 +133,57 @@ class _NixSwitchState extends State<NixSwitch>
 
   void _handleTap() {
     if (widget.enabled) {
+      if (widget.enableFeedback) {
+        HapticFeedback.lightImpact();
+      }
       widget.onChanged!(!widget.value);
     }
   }
 
   void _handleDragStart(DragStartDetails details) {
     if (!widget.enabled) return;
+    _dragIsOn = _controller.value >= 0.5;
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
     if (!widget.enabled) return;
     const travelDistance = 18.0;
-    _controller.value += details.primaryDelta! / travelDistance;
+    _controller.value =
+        (_controller.value + details.primaryDelta! / travelDistance).clamp(
+          0.0,
+          1.0,
+        );
+    final currentIsOn = _controller.value >= 0.5;
+    if (currentIsOn != _dragIsOn) {
+      _dragIsOn = currentIsOn;
+      if (widget.enableFeedback) {
+        HapticFeedback.lightImpact();
+      }
+    }
   }
 
   void _handleDragEnd(DragEndDetails details) {
     if (!widget.enabled) return;
-    if (_controller.value >= 0.5) {
-      if (!widget.value) {
-        widget.onChanged!(true);
-      } else {
-        _controller.forward();
-      }
+    final velocity = details.primaryVelocity ?? 0.0;
+    bool target;
+    if (velocity.abs() > 300.0) {
+      target = velocity > 0;
     } else {
-      if (widget.value) {
-        widget.onChanged!(false);
+      target = _controller.value >= 0.5;
+    }
+
+    if (target != _dragIsOn) {
+      _dragIsOn = target;
+      if (widget.enableFeedback) {
+        HapticFeedback.lightImpact();
+      }
+    }
+
+    if (target != widget.value) {
+      widget.onChanged!(target);
+    } else {
+      if (target) {
+        _controller.forward();
       } else {
         _controller.reverse();
       }
@@ -205,6 +240,16 @@ class _NixSwitchState extends State<NixSwitch>
     return Focus(
       focusNode: widget.focusNode,
       autofocus: widget.autofocus,
+      onKeyEvent: (node, event) {
+        if (!widget.enabled) return KeyEventResult.ignored;
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.space ||
+                event.logicalKey == LogicalKeyboardKey.enter)) {
+          _handleTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
       child: Semantics(
         toggled: widget.value,
         enabled: widget.enabled,

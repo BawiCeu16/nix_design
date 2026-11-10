@@ -40,6 +40,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
 
   // NixBottomBar playground state
   NixBottomBarStyle _bottomBarStyle = NixBottomBarStyle.standard;
+  bool _enableNavBarShrink = true;
   int _navBarItemCount = 4;
   NixBarActionPosition _barActionPosition = NixBarActionPosition.right;
   String _navBarContentType =
@@ -99,6 +100,11 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   bool _isUpdatingApp = false;
   double? _updateProgress;
   bool _vpnExpandedTile = false;
+
+  // NixWaveSlider state
+  double _musicPlaybackSeconds = 84.0;
+  final double _musicTotalSeconds = 225.0;
+  bool _isMusicPlaying = false;
 
   // NixListView state
   bool _isSelectionMode = false;
@@ -253,6 +259,8 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
       bottomNavigationBar: NixBottomBar(
         style: _bottomBarStyle,
         scrollController: _scrollController,
+        enableShrink: _enableNavBarShrink,
+        shrinkOnScroll: _enableNavBarShrink,
         currentIndex: _navIndex >= _navBarItems.length ? 0 : _navIndex,
         onTap: (index) => setState(() => _navIndex = index),
         onLongPress: (index) {
@@ -590,6 +598,74 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                     ],
                   ),
                 ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Squiggly Wave Slider for Music (NixWaveSlider)
+        NixCard(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                    child: Icon(
+                      Icons.graphic_eq_rounded,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Squiggly Wave Slider (Music Player)',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          'Active squiggly wave • Sleek pill thumb • Rounded ends',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  NixIconButton.filled(
+                    size: NixSize.medium,
+                    icon: Icon(
+                      _isMusicPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                    ),
+                    tooltip: _isMusicPlaying ? 'Pause' : 'Play',
+                    onPressed: () =>
+                        setState(() => _isMusicPlaying = !_isMusicPlaying),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              NixWaveSlider.music(
+                value: _musicPlaybackSeconds,
+                max: _musicTotalSeconds,
+                isPlaying: _isMusicPlaying,
+                onChanged: (val) => setState(() => _musicPlaybackSeconds = val),
               ),
             ],
           ),
@@ -1723,6 +1799,15 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          NixSwitchTile(
+            title: const Text('Shrink Bar on Scroll'),
+            subtitle: const Text(
+              'Smoothly compress scale & margins when scrolling down (can be disabled)',
+            ),
+            value: _enableNavBarShrink,
+            onChanged: (val) => setState(() => _enableNavBarShrink = val),
+          ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12.0),
@@ -1808,6 +1893,20 @@ class _NixSearchSheetState extends State<_NixSearchSheet> {
       tabIndex: 1,
       icon: Icons.splitscreen_rounded,
       desc: 'Segmented switch list tiles with 16px container and native ink splash',
+    ),
+    (
+      name: 'NixWaveSlider',
+      category: 'Widgets',
+      tabIndex: 1,
+      icon: Icons.graphic_eq_rounded,
+      desc: 'Squiggly wave music scrubber, active wave, sleek pill thumb & rounded ends',
+    ),
+    (
+      name: 'NixExpandable',
+      category: 'Widgets',
+      tabIndex: 1,
+      icon: Icons.unfold_more_rounded,
+      desc: 'Expandable surfaces, app update cards, and single/multi expand',
     ),
     (
       name: 'NixSegmentedControl',

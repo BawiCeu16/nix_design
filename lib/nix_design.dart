@@ -21,6 +21,7 @@ export 'src/widgets/buttons/nix_icon_button.dart';
 
 // Inputs & Form Controls
 export 'src/widgets/inputs/nix_switch.dart';
+export 'src/widgets/inputs/nix_wave_slider.dart';
 
 // Chips & Tags
 export 'src/widgets/chips/nix_chip.dart';
