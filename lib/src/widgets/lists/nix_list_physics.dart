@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// Physics and geometry calculations for [NixListView] and [NixListItem].
@@ -20,8 +21,8 @@ class NixListPhysics {
   /// Default inner corner radius between adjacent items (6px).
   static const double innerItemRadius = 6.0;
 
-  /// Default radius for detached items (e.g. active/playing or selected) (14px).
-  static const double detachedItemRadius = 14.0;
+  /// Default radius for detached items (e.g. active/playing or selected) (12px).
+  static const double detachedItemRadius = 12.0;
 
   /// Proximity reach distance (in logical pixels) within which a dragged card
   /// begins squishing and displacing adjacent neighbor cards.
@@ -29,13 +30,15 @@ class NixListPhysics {
 
   /// Computes the dynamic segmented [BorderRadius] for an item in [NixListView].
   ///
-  /// - If [isSelected], [isPlaying], or [isDragged] is true, the item detaches
-  ///   into an isolated pill card with [detachedItemRadius] on all 4 corners.
-  /// - If [totalCount] <= 1: all corners are [outerItemRadius] (12px).
-  /// - Top corners: [outerItemRadius] (12px) if first item (index 0) or if the
-  ///   previous neighbor is detached; otherwise [innerItemRadius] (6px).
-  /// - Bottom corners: [outerItemRadius] (12px) if last item (index count - 1)
-  ///   or if the next neighbor is detached; otherwise [innerItemRadius] (6px).
+  /// - If [isDragged] is true, the item detaches into an isolated pill card
+  ///   with [detachedRadius] on all 4 corners.
+  /// - If [totalCount] <= 1: all corners are [outerRadius] (12px).
+  /// - Top corners: [outerRadius] (12px) if first item (index 0) or if the
+  ///   previous neighbor is detached or not in the same state;
+  ///   otherwise [innerRadius] (6px) when sharing contiguous selected/playing state.
+  /// - Bottom corners: [outerRadius] (12px) if last item (index count - 1)
+  ///   or if the next neighbor is detached or not in the same state;
+  ///   otherwise [innerRadius] (6px) when sharing contiguous selected/playing state.
   /// - Dynamically applies neighbor reach shape deformation via [squishTopReach]
   ///   and [squishBottomReach].
   static BorderRadius computeSegmentedRadius({
@@ -46,13 +49,15 @@ class NixListPhysics {
     bool isDragged = false,
     bool prevDetached = false,
     bool nextDetached = false,
+    bool prevSameState = false,
+    bool nextSameState = false,
     double squishTopReach = 0.0,
     double squishBottomReach = 0.0,
     double outerRadius = outerItemRadius,
     double innerRadius = innerItemRadius,
-    double detachedRadius = detachedItemRadius,
+    double detachedRadius = outerItemRadius,
   }) {
-    if (isSelected || isPlaying || isDragged) {
+    if (isDragged) {
       return BorderRadius.all(Radius.circular(detachedRadius));
     }
 
@@ -60,17 +65,32 @@ class NixListPhysics {
       return BorderRadius.all(Radius.circular(outerRadius));
     }
 
-    // Top corners: 12px if first or previous neighbor detached, else 6px
-    final baseTop = (index == 0 || prevDetached) ? outerRadius : innerRadius;
+    // Top corners: 12px if first or previous neighbor detached / different state, else 6px
+    final double baseTop;
+    if (isSelected || isPlaying) {
+      baseTop = (index == 0 || !prevSameState) ? outerRadius : innerRadius;
+    } else {
+      baseTop = (index == 0 || prevDetached) ? outerRadius : innerRadius;
+    }
 
-    // Bottom corners: 12px if last or next neighbor detached, else 6px
-    final baseBottom =
-        (index == totalCount - 1 || nextDetached) ? outerRadius : innerRadius;
+    // Bottom corners: 12px if last or next neighbor detached / different state, else 6px
+    final double baseBottom;
+    if (isSelected || isPlaying) {
+      baseBottom = (index == totalCount - 1 || !nextSameState)
+          ? outerRadius
+          : innerRadius;
+    } else {
+      baseBottom = (index == totalCount - 1 || nextDetached)
+          ? outerRadius
+          : innerRadius;
+    }
 
     // Shape morphing under reach compression (squish)
     final effectiveTop = (baseTop - (squishTopReach * 3.0)).clamp(3.0, 16.0);
-    final effectiveBottom =
-        (baseBottom - (squishBottomReach * 3.0)).clamp(3.0, 16.0);
+    final effectiveBottom = (baseBottom - (squishBottomReach * 3.0)).clamp(
+      3.0,
+      16.0,
+    );
 
     return BorderRadius.only(
       topLeft: Radius.circular(effectiveTop),
@@ -183,7 +203,10 @@ class NixSpringCurve extends Curve {
     final decay = math.exp(-zeta * omega * t);
     final omegaD = omega * math.sqrt(math.max(0.0, 1.0 - zeta * zeta));
 
-    return 1.0 - decay * (math.cos(omegaD * t) + (zeta / math.sqrt(math.max(0.001, 1.0 - zeta * zeta))) * math.sin(omegaD * t));
+    return 1.0 -
+        decay *
+            (math.cos(omegaD * t) +
+                (zeta / math.sqrt(math.max(0.001, 1.0 - zeta * zeta))) *
+                    math.sin(omegaD * t));
   }
 }
-

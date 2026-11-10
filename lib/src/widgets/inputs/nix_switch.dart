@@ -167,17 +167,18 @@ class _NixSwitchState extends State<NixSwitch>
     const thumbWidth = 32.0;
     const padding = 3.0;
 
-    final effectiveActiveTrack = widget.activeTrackColor ??
-        (nixTheme.primary ?? colors.primary);
-    final effectiveInactiveTrack = widget.inactiveTrackColor ??
+    final effectiveActiveTrack =
+        widget.activeTrackColor ?? (nixTheme.primary ?? colors.primary);
+    final effectiveInactiveTrack =
+        widget.inactiveTrackColor ??
         (nixTheme.surfaceContainerHigh ?? colors.surfaceContainerHighest);
 
-    final effectiveActiveThumb = widget.thumbColor ??
+    final effectiveActiveThumb =
+        widget.thumbColor ??
         widget.activeColor ??
         (nixTheme.onPrimary ?? colors.onPrimary);
-    final effectiveInactiveThumb = widget.thumbColor ??
-        widget.inactiveColor ??
-        colors.outline;
+    final effectiveInactiveThumb =
+        widget.thumbColor ?? widget.inactiveColor ?? colors.outline;
 
     final trackColorAnimation = ColorTween(
       begin: effectiveInactiveTrack,

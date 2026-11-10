@@ -44,6 +44,5 @@ export 'src/widgets/feedback/nix_snack_bar.dart';
 export 'src/widgets/lists/nix_list_item.dart';
 export 'src/widgets/lists/nix_list_physics.dart';
 export 'src/widgets/lists/nix_list_view.dart';
-export 'src/widgets/lists/nix_music_equalizer.dart';
 export 'src/widgets/lists/nix_swipe_action.dart';
 

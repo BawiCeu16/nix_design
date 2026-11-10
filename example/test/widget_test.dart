@@ -124,13 +124,13 @@ void main() {
     expect(find.text('NixButton'), findsOneWidget);
 
     // Enter search text
-    await tester.enterText(find.byType(TextField), 'equalizer');
+    await tester.enterText(find.byType(TextField), 'Corner');
     await tester.pumpAndSettle();
 
-    expect(find.text('NixMusicEqualizer'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Dynamic Corner Morphs'), findsOneWidget);
 
     // Tap result to navigate to Lists category
-    await tester.tap(find.text('NixMusicEqualizer'));
+    await tester.tap(find.widgetWithText(ListTile, 'Dynamic Corner Morphs'));
     await tester.pumpAndSettle();
 
     // Verifies search sheet dismissed and navigated to Lists tab

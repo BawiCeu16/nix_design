@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../theme/nix_theme_data.dart';
 import 'nix_list_item.dart';
 import 'nix_list_physics.dart';
+import 'nix_swipe_action.dart';
 
 /// Selection mode for [NixListView].
 enum NixSelectionMode {
@@ -17,6 +18,21 @@ enum NixSelectionMode {
 
   /// Multiple items can be selected concurrently.
   multi,
+}
+
+/// Defines how reorder drag gestures can be initiated in a [NixListView].
+enum NixReorderTrigger {
+  /// Reordering is completely disabled for the entire list.
+  disabled,
+
+  /// Reordering can only be initiated via a developer's reorder handle or icon ([NixReorderHandle]).
+  handleOnly,
+
+  /// Reordering can be initiated by long-pressing anywhere on the whole list item.
+  wholeItem,
+
+  /// Reordering can be initiated either via [NixReorderHandle] or by long-pressing the whole list item.
+  both,
 }
 
 /// A premium, pill-inspired segmented list view designed for the Nix Design System.
@@ -44,6 +60,8 @@ class NixListView extends StatefulWidget {
     this.onReorder,
     this.reorderable = false,
     this.canReorderOnLongPress = true,
+    this.reorderTrigger = NixReorderTrigger.both,
+    this.buildDefaultDragHandles = true,
     this.enableContainer = true,
     this.containerColor,
     this.containerBorderRadius = const BorderRadius.all(
@@ -58,6 +76,11 @@ class NixListView extends StatefulWidget {
     this.onSelectionChanged,
     this.playingIndex,
     this.emptyPlaceholder,
+    this.swipeMode = NixSwipeMode.dismiss,
+    this.swipeDirection = NixSwipeDirection.both,
+    this.dropTargetColor,
+    this.dropTargetBorder,
+    this.dropTargetBorderRadius,
   })  : itemCount = null,
         itemBuilder = null,
         separatorBuilder = null;
@@ -75,6 +98,8 @@ class NixListView extends StatefulWidget {
     this.onReorder,
     this.reorderable = false,
     this.canReorderOnLongPress = true,
+    this.reorderTrigger = NixReorderTrigger.both,
+    this.buildDefaultDragHandles = true,
     this.enableContainer = true,
     this.containerColor,
     this.containerBorderRadius = const BorderRadius.all(
@@ -89,6 +114,11 @@ class NixListView extends StatefulWidget {
     this.onSelectionChanged,
     this.playingIndex,
     this.emptyPlaceholder,
+    this.swipeMode = NixSwipeMode.dismiss,
+    this.swipeDirection = NixSwipeDirection.both,
+    this.dropTargetColor,
+    this.dropTargetBorder,
+    this.dropTargetBorderRadius,
   })  : children = null,
         separatorBuilder = null;
 
@@ -106,6 +136,8 @@ class NixListView extends StatefulWidget {
     this.onReorder,
     this.reorderable = false,
     this.canReorderOnLongPress = true,
+    this.reorderTrigger = NixReorderTrigger.both,
+    this.buildDefaultDragHandles = true,
     this.enableContainer = true,
     this.containerColor,
     this.containerBorderRadius = const BorderRadius.all(
@@ -120,6 +152,11 @@ class NixListView extends StatefulWidget {
     this.onSelectionChanged,
     this.playingIndex,
     this.emptyPlaceholder,
+    this.swipeMode = NixSwipeMode.dismiss,
+    this.swipeDirection = NixSwipeDirection.both,
+    this.dropTargetColor,
+    this.dropTargetBorder,
+    this.dropTargetBorderRadius,
   }) : children = null;
 
   /// Explicit list of children.
@@ -161,6 +198,20 @@ class NixListView extends StatefulWidget {
   /// Whether long-pressing an item starts reordering.
   final bool canReorderOnLongPress;
 
+  /// Determines how items can be dragged to reorder:
+  /// - [NixReorderTrigger.both]: Can drag using [NixReorderHandle] or long-pressing the whole item.
+  /// - [NixReorderTrigger.handleOnly]: Can ONLY drag using a [NixReorderHandle].
+  /// - [NixReorderTrigger.wholeItem]: Can drag by long-pressing anywhere on the whole list item.
+  final NixReorderTrigger reorderTrigger;
+
+  /// Whether to automatically render default drag handles ([NixReorderHandle])
+  /// for list items when [reorderable] is true and [reorderTrigger] allows handles.
+  ///
+  /// Modeled after Flutter's native [ReorderableListView.buildDefaultDragHandles].
+  /// Defaults to true. Set to false if you supply your own [NixReorderHandle]
+  /// or [NixReorderDragListener] inside item content.
+  final bool buildDefaultDragHandles;
+
   /// Whether to wrap items in the segmented surface container.
   final bool enableContainer;
 
@@ -198,6 +249,24 @@ class NixListView extends StatefulWidget {
   /// Optional placeholder displayed when [itemCount] is 0.
   final Widget? emptyPlaceholder;
 
+  /// Default swipe mode for descendant [NixListItem]s (dismiss or action buttons).
+  final NixSwipeMode swipeMode;
+
+  /// Permitted swipe directions for descendant [NixListItem]s.
+  final NixSwipeDirection swipeDirection;
+
+  /// Background color of the drop target slot while an item is being dragged.
+  /// If null, defaults to primary color with 0.14 opacity.
+  final Color? dropTargetColor;
+
+  /// Border of the drop target slot while an item is being dragged.
+  /// If null, defaults to a subtle primary border.
+  final BoxBorder? dropTargetBorder;
+
+  /// Corner radius of the drop target slot while an item is being dragged.
+  /// If null, automatically computes the segmented radius of its current target place.
+  final BorderRadius? dropTargetBorderRadius;
+
   @override
   State<NixListView> createState() => _NixListViewState();
 }
@@ -209,18 +278,16 @@ class _NixListViewState extends State<NixListView>
   final List<double> _restingSlotTops = [];
   final List<double> _restingSlotHeights = [];
   final List<double> _restingSlotCenters = [];
-  bool _justReordered = false;
 
   late final AnimationController _settleController;
   Animation<double>? _settleAnimation;
   Animation<double>? _settleXAnimation;
 
-  // Reorder Gestures
-  late final ImmediateMultiDragGestureRecognizer _immediateRecognizer;
-  DelayedMultiDragGestureRecognizer? _delayedRecognizer;
+  // Reorder Gestures (Flutter-native architecture)
+  MultiDragGestureRecognizer? _recognizer;
+  int? _recognizerPointer;
 
   // Active Drag State
-  int? _pendingDragIndex;
   int? _draggedIndex;
   int? _hoverTargetIndex;
   double _dragOffsetY = 0.0;
@@ -233,6 +300,8 @@ class _NixListViewState extends State<NixListView>
 
   // Internal selection state if not controlled externally
   late Set<int> _internalSelected;
+  final Set<int> _actionOpenIndices = <int>{};
+  bool _justReordered = false;
 
   @override
   void initState() {
@@ -243,7 +312,7 @@ class _NixListViewState extends State<NixListView>
 
     _settleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 160),
+      duration: const Duration(milliseconds: 140),
     );
     _settleController.addListener(() {
       if (_settleController.isAnimating && _settleAnimation != null) {
@@ -255,40 +324,37 @@ class _NixListViewState extends State<NixListView>
         });
       }
     });
-
-    _immediateRecognizer = ImmediateMultiDragGestureRecognizer()
-      ..onStart = _handleDragStart;
-
-    _resetDelayedRecognizer();
-  }
-
-  void _resetDelayedRecognizer() {
-    _delayedRecognizer?.dispose();
-    _delayedRecognizer = DelayedMultiDragGestureRecognizer(
-      delay: const Duration(milliseconds: 220),
-    )..onStart = _handleDragStart;
   }
 
   @override
   void didUpdateWidget(covariant NixListView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.selectedIndices != null) {
+    if (widget.selectionMode == NixSelectionMode.none) {
+      _internalSelected.clear();
+    } else if (widget.selectedIndices != null) {
       _internalSelected = Set<int>.from(widget.selectedIndices!);
     }
     if (widget.effectiveItemCount != oldWidget.effectiveItemCount) {
       _activeSwipingIndex = null;
+      _actionOpenIndices.clear();
+    } else {
+      _actionOpenIndices.removeWhere((i) => i >= widget.effectiveItemCount);
     }
   }
 
   @override
   void dispose() {
     _settleController.dispose();
-    _immediateRecognizer.dispose();
-    _delayedRecognizer?.dispose();
+    _recognizer?.dispose();
+    _recognizer = null;
+    _recognizerPointer = null;
     super.dispose();
   }
 
   void _handleItemSelect(int index, bool selected) {
+    if (_activeSwipingIndex == index || _actionOpenIndices.contains(index)) {
+      return;
+    }
     setState(() {
       if (widget.selectionMode == NixSelectionMode.single) {
         _internalSelected.clear();
@@ -307,18 +373,51 @@ class _NixListViewState extends State<NixListView>
     widget.onSelectionChanged?.call(Set<int>.from(_internalSelected));
   }
 
+  void _startItemDragReorder({
+    required int index,
+    required PointerDownEvent event,
+    required MultiDragGestureRecognizer recognizer,
+  }) {
+    if (!widget.reorderable || widget.onReorder == null) return;
+    if (widget.reorderTrigger == NixReorderTrigger.disabled) return;
+    if (widget.selectionMode != NixSelectionMode.none) return;
+    if (index < 0 || index >= widget.effectiveItemCount) return;
+    _actionOpenIndices.removeWhere((i) => i >= widget.effectiveItemCount);
+    if (_activeSwipingIndex != null || _actionOpenIndices.isNotEmpty) return;
+    final rawChild = _getRawChild(context, index);
+    if (rawChild is NixListItem && !rawChild.canReorder) return;
+
+    if (_draggedIndex != null) {
+      _cancelDrag();
+    } else if (_recognizer != null && _recognizerPointer != event.pointer) {
+      _recognizer!.dispose();
+      _recognizer = null;
+      _recognizerPointer = null;
+    }
+
+    recognizer.onStart = (position) => _handleDragStart(index, position);
+    recognizer.addPointer(event);
+    _recognizer = recognizer;
+    _recognizerPointer = event.pointer;
+  }
+
   void _startPointerDrag(
     int index,
     PointerDownEvent event, {
     required bool isImmediate,
   }) {
-    if (!widget.reorderable || widget.onReorder == null) return;
-    _pendingDragIndex = index;
-    if (isImmediate) {
-      _immediateRecognizer.addPointer(event);
-    } else {
-      _delayedRecognizer?.addPointer(event);
-    }
+    final settings = MediaQuery.maybeGestureSettingsOf(context);
+    _startItemDragReorder(
+      index: index,
+      event: event,
+      recognizer: isImmediate
+          ? (ImmediateMultiDragGestureRecognizer(debugOwner: this)
+            ..gestureSettings = settings)
+          : (DelayedMultiDragGestureRecognizer(
+              delay: const Duration(milliseconds: 200),
+              debugOwner: this,
+            )..gestureSettings = settings),
+    );
   }
 
   Key _getItemKey(int index) {
@@ -353,15 +452,21 @@ class _NixListViewState extends State<NixListView>
     return 56.0;
   }
 
-  Drag? _handleDragStart(Offset startPosition) {
-    if (_pendingDragIndex == null ||
-        _pendingDragIndex! < 0 ||
-        _pendingDragIndex! >= widget.effectiveItemCount ||
-        _settleController.isAnimating) {
+  Drag? _handleDragStart(int index, Offset startPosition) {
+    if (index < 0 ||
+        index >= widget.effectiveItemCount ||
+        _settleController.isAnimating ||
+        widget.selectionMode != NixSelectionMode.none ||
+        !widget.reorderable ||
+        widget.onReorder == null ||
+        widget.reorderTrigger == NixReorderTrigger.disabled) {
+      return null;
+    }
+    final rawChild = _getRawChild(context, index);
+    if (rawChild is NixListItem && !rawChild.canReorder) {
       return null;
     }
 
-    final index = _pendingDragIndex!;
     HapticFeedback.mediumImpact();
 
     // Cache the exact resting tops, heights, and centers of all items BEFORE anything moves
@@ -431,6 +536,10 @@ class _NixListViewState extends State<NixListView>
   }
 
   void _finishDrag(DragEndDetails details) {
+    _recognizer?.dispose();
+    _recognizer = null;
+    _recognizerPointer = null;
+
     if (_draggedIndex == null || _settleController.isAnimating) return;
 
     final from = _draggedIndex!;
@@ -472,35 +581,38 @@ class _NixListViewState extends State<NixListView>
       if (from != to) {
         _justReordered = true;
         widget.onReorder?.call(from, to);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _justReordered = false;
+            });
+          }
+        });
       }
 
       setState(() {
         _draggedIndex = null;
         _hoverTargetIndex = null;
-        _pendingDragIndex = null;
         _dragOffsetY = 0.0;
         _dragOffsetX = 0.0;
-      });
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            _justReordered = false;
-          });
-        }
       });
     });
   }
 
   void _cancelDrag() {
+    _recognizer?.dispose();
+    _recognizer = null;
+    _recognizerPointer = null;
+
     if (_draggedIndex == null) return;
     _settleToSlot(_draggedIndex!, _draggedIndex!);
   }
 
   void _cancelPendingReorder() {
-    _pendingDragIndex = null;
     if (_draggedIndex == null) {
-      _resetDelayedRecognizer();
+      _recognizer?.dispose();
+      _recognizer = null;
+      _recognizerPointer = null;
     }
   }
 
@@ -513,20 +625,64 @@ class _NixListViewState extends State<NixListView>
   }
 
   void _handleSwipeEnd(int index) {
-    if (_activeSwipingIndex == index) {
-      setState(() {
+    setState(() {
+      if (_activeSwipingIndex == index || _activeSwipingIndex != null) {
         _activeSwipingIndex = null;
-      });
+      }
+    });
+  }
+
+  void _handleActionOpenChanged(int index, bool isOpen) {
+    if (isOpen) {
+      if (!_actionOpenIndices.contains(index)) {
+        setState(() {
+          _actionOpenIndices.add(index);
+        });
+      }
+    } else {
+      if (_actionOpenIndices.contains(index)) {
+        setState(() {
+          _actionOpenIndices.remove(index);
+        });
+      }
     }
+  }
+
+  bool _isChildSelected(int index) {
+    if (index < 0 || index >= widget.effectiveItemCount) return false;
+    if (_activeSwipingIndex == index || _actionOpenIndices.contains(index)) {
+      return false;
+    }
+    if (widget.selectionMode != NixSelectionMode.none &&
+        _internalSelected.contains(index)) {
+      return true;
+    }
+    final raw = _getRawChild(context, index);
+    if (raw is NixListItem) {
+      return raw.isSelected;
+    }
+    return false;
+  }
+
+  bool _isChildPlaying(int index) {
+    if (index < 0 || index >= widget.effectiveItemCount) return false;
+    if (_activeSwipingIndex == index || _actionOpenIndices.contains(index)) {
+      return false;
+    }
+    if (widget.playingIndex == index) return true;
+    final raw = _getRawChild(context, index);
+    if (raw is NixListItem) {
+      return raw.isPlaying || raw.isActive;
+    }
+    return false;
   }
 
   bool _isDetached(int index) {
     if (index < 0 || index >= widget.effectiveItemCount) return false;
-    final isSel = _internalSelected.contains(index);
-    final isPlay = widget.playingIndex == index;
-    final isDrag = _draggedIndex == index;
+    final isSel = _isChildSelected(index);
+    final isPlay = _isChildPlaying(index);
     final isSwipe = _activeSwipingIndex == index;
-    return isSel || isPlay || isDrag || isSwipe;
+    return isSel || isPlay || isSwipe;
   }
 
   Widget _getRawChild(BuildContext context, int index) {
@@ -542,17 +698,32 @@ class _NixListViewState extends State<NixListView>
     final measurementKey =
         _measurementKeys.putIfAbsent(itemKey, () => GlobalKey());
 
-    final isSelected = _internalSelected.contains(index);
-    final isPlaying = widget.playingIndex == index;
+    final theme = Theme.of(context);
+    final nixTheme = NixThemeData.of(context);
+    final colors = theme.colorScheme;
+
+    final isSelected = _isChildSelected(index);
+    final isPlaying = _isChildPlaying(index);
     final isDragged = _draggedIndex == index;
+
+    // Target slot for drop target
+    final targetSlot = _hoverTargetIndex ?? _draggedIndex;
 
     // Check neighbors detached state for dynamic corner radius morphing & sealing
     final prevDetached = _isDetached(index - 1);
     final nextDetached = _isDetached(index + 1);
 
+    final prevSameState = isSelected
+        ? _isChildSelected(index - 1)
+        : (isPlaying ? _isChildPlaying(index - 1) : !_isDetached(index - 1));
+
+    final nextSameState = isSelected
+        ? _isChildSelected(index + 1)
+        : (isPlaying ? _isChildPlaying(index + 1) : !_isDetached(index + 1));
+
     // Calculate slot shift during reorder (Reorder opens slots cleanly)
     double slotShiftFraction = 0.0;
-    if (_draggedIndex != null && _hoverTargetIndex != null && !isDragged) {
+    if (_draggedIndex != null && _hoverTargetIndex != null) {
       final from = _draggedIndex!;
       final to = _hoverTargetIndex!;
 
@@ -565,7 +736,17 @@ class _NixListViewState extends State<NixListView>
       final double fractionStep =
           currentItemHeight > 0 ? (step / currentItemHeight) : 1.0;
 
-      if (from < to && index > from && index <= to) {
+      if (isDragged) {
+        if (_restingSlotTops.length > to && _restingSlotTops.length > from) {
+          final double targetPixelShift =
+              _restingSlotTops[to] - _restingSlotTops[from];
+          slotShiftFraction = currentItemHeight > 0
+              ? (targetPixelShift / currentItemHeight)
+              : (to - from).toDouble();
+        } else {
+          slotShiftFraction = (to - from) * fractionStep;
+        }
+      } else if (from < to && index > from && index <= to) {
         slotShiftFraction = -fractionStep;
       } else if (from > to && index < from && index >= to) {
         slotShiftFraction = fractionStep;
@@ -573,6 +754,69 @@ class _NixListViewState extends State<NixListView>
     }
 
     final isSelectable = widget.selectionMode != NixSelectionMode.none;
+
+    Widget childContent = rawChild;
+    if (isDragged) {
+      final effectiveDropTargetColor = widget.dropTargetColor ??
+          (nixTheme.primary ?? colors.primary).withValues(alpha: 0.14);
+
+      final effectiveDropTargetBorder = widget.dropTargetBorder;
+
+      final effectiveDropTargetRadius = widget.dropTargetBorderRadius ??
+          NixListPhysics.computeSegmentedRadius(
+            index: targetSlot ?? index,
+            totalCount: widget.effectiveItemCount,
+          );
+
+      childContent = AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOutCubic,
+        width: double.infinity,
+        height: _draggedHeight > 0 ? _draggedHeight : 56.0,
+        decoration: BoxDecoration(
+          color: effectiveDropTargetColor,
+          borderRadius: effectiveDropTargetRadius,
+          border: effectiveDropTargetBorder,
+        ),
+      );
+    }
+
+    _actionOpenIndices.removeWhere((i) => i >= widget.effectiveItemCount);
+    final bool isActionOpenForThisItem =
+        _actionOpenIndices.contains(index) || _activeSwipingIndex == index;
+    final isSelectMode = widget.selectionMode != NixSelectionMode.none;
+    final effectiveTrigger = widget.reorderTrigger;
+    final bool itemCanReorder =
+        (rawChild is! NixListItem || rawChild.canReorder) &&
+        !isActionOpenForThisItem;
+    final isReorderDisabled = !widget.reorderable ||
+        widget.onReorder == null ||
+        isSelectMode ||
+        effectiveTrigger == NixReorderTrigger.disabled ||
+        !itemCanReorder ||
+        _actionOpenIndices.isNotEmpty;
+
+    final canReorderHandle = !isReorderDisabled &&
+        (effectiveTrigger == NixReorderTrigger.handleOnly ||
+            effectiveTrigger == NixReorderTrigger.both);
+    final canReorderWholeItem = !isReorderDisabled &&
+        widget.canReorderOnLongPress &&
+        (effectiveTrigger == NixReorderTrigger.wholeItem ||
+            effectiveTrigger == NixReorderTrigger.both);
+
+    final shouldWrapDelayed = widget.reorderable &&
+        widget.canReorderOnLongPress &&
+        (widget.reorderTrigger == NixReorderTrigger.both ||
+            widget.reorderTrigger == NixReorderTrigger.wholeItem);
+
+    Widget itemContent = childContent;
+    if (shouldWrapDelayed) {
+      itemContent = NixReorderDelayedDragListener(
+        index: index,
+        enabled: canReorderWholeItem,
+        child: itemContent,
+      );
+    }
 
     Widget scopedWidget = KeyedSubtree(
       key: measurementKey,
@@ -584,40 +828,38 @@ class _NixListViewState extends State<NixListView>
         isPlaying: isPlaying,
         prevDetached: prevDetached,
         nextDetached: nextDetached,
+        prevSameState: prevSameState,
+        nextSameState: nextSameState,
         isDragged: isDragged,
         isReordering: _draggedIndex != null,
-        onStartReorder: (idx, event) =>
-            _startPointerDrag(idx, event, isImmediate: true),
+        startItemDragReorder: canReorderHandle || canReorderWholeItem
+            ? _startItemDragReorder
+            : null,
+        onStartReorder: canReorderHandle
+            ? (idx, event) => _startPointerDrag(idx, event, isImmediate: true)
+            : null,
+        onStartDelayedReorder: canReorderWholeItem
+            ? (idx, event) => _startPointerDrag(idx, event, isImmediate: false)
+            : null,
         onCancelReorder: _cancelPendingReorder,
         onSwipeUpdate: _handleSwipeUpdate,
         onSwipeEnd: _handleSwipeEnd,
         onItemSelect: _handleItemSelect,
-        child: isDragged
-            // When dragged, maintain footprint without instantiating duplicate child element tree
-            ? SizedBox(
-                width: double.infinity,
-                height: _draggedHeight,
-              )
-            : rawChild,
+        onActionOpenChanged: _handleActionOpenChanged,
+        swipeMode: widget.swipeMode,
+        swipeDirection: widget.swipeDirection,
+        buildDefaultDragHandles: widget.buildDefaultDragHandles,
+        canReorderHandle: canReorderHandle,
+        child: itemContent,
       ),
     );
 
-    // If reordering via long-press is enabled
-    if (widget.reorderable && widget.canReorderOnLongPress) {
-      scopedWidget = Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: (event) =>
-            _startPointerDrag(index, event, isImmediate: false),
-        child: scopedWidget,
-      );
-    }
-
-    // Wrap in animated slide for smooth slot opening
+    // Smooth, polished animation during reorder drag; zero duration only on data commit frame
     Widget item = AnimatedSlide(
       offset: Offset(0, slotShiftFraction),
       duration: _justReordered
           ? Duration.zero
-          : const Duration(milliseconds: 200),
+          : const Duration(milliseconds: 140),
       curve: Curves.easeOutCubic,
       child: scopedWidget,
     );
@@ -640,49 +882,82 @@ class _NixListViewState extends State<NixListView>
   Widget _buildFloatingDraggedCard(BuildContext context) {
     if (_draggedIndex == null) return const SizedBox.shrink();
 
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final rawChild = _getRawChild(context, _draggedIndex!);
-    final containerPad = widget.containerPadding.horizontal / 2.0;
+    final resolvedPadding =
+        widget.containerPadding.resolve(Directionality.maybeOf(context));
+    final leftOffset =
+        widget.enableContainer ? resolvedPadding.left : 0.0;
+    final rightOffset =
+        widget.enableContainer ? resolvedPadding.right : 0.0;
 
     return Positioned(
       top: _draggedInitialTop + _dragOffsetY,
-      left: containerPad,
-      right: containerPad,
+      left: leftOffset,
+      right: rightOffset,
       child: IgnorePointer(
         child: Transform.scale(
-          scale: 1.04,
+          scale: 1.02,
           child: Transform.translate(
             offset: Offset(_dragOffsetX, 0.0),
-            child: Material(
-              type: MaterialType.transparency,
-              elevation: 12.0,
-              shadowColor: Colors.black45,
-              borderRadius: BorderRadius.circular(
-                NixListPhysics.detachedItemRadius,
+            child: Container(
+              decoration: BoxDecoration(
+                color: colors.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(
+                  NixListPhysics.detachedItemRadius,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.10),
+                    blurRadius: 10.0,
+                    spreadRadius: 0.0,
+                    offset: const Offset(0.0, 4.0),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 3.0,
+                    spreadRadius: 0.0,
+                    offset: const Offset(0.0, 1.0),
+                  ),
+                ],
               ),
-              child: NixListScope(
-                index: _draggedIndex!,
-                totalCount: widget.effectiveItemCount,
-                isSelected: _internalSelected.contains(_draggedIndex!),
-                isSelectable: widget.selectionMode != NixSelectionMode.none,
-                isPlaying: widget.playingIndex == _draggedIndex!,
-                prevDetached: true,
-                nextDetached: true,
-                squishTopReach: 0.0,
-                squishBottomReach: 0.0,
-                displacementOffsetY: 0.0,
-                scaleX: 1.0,
-                scaleY: 1.0,
-                swipePullOffsetX: 0.0,
-                swipePullOffsetY: 0.0,
-                swipePullScaleY: 1.0,
-                isDragged: true,
-                isReordering: true,
-                onStartReorder: null,
-                onCancelReorder: null,
-                onSwipeUpdate: null,
-                onSwipeEnd: null,
-                onItemSelect: null,
-                child: rawChild,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(
+                  NixListPhysics.detachedItemRadius,
+                ),
+                child: NixListScope(
+                  index: _draggedIndex!,
+                  totalCount: widget.effectiveItemCount,
+                  isSelected: widget.selectionMode != NixSelectionMode.none &&
+                      _internalSelected.contains(_draggedIndex!),
+                  isSelectable: widget.selectionMode != NixSelectionMode.none,
+                  isPlaying: widget.playingIndex == _draggedIndex!,
+                  prevDetached: true,
+                  nextDetached: true,
+                  squishTopReach: 0.0,
+                  squishBottomReach: 0.0,
+                  displacementOffsetY: 0.0,
+                  scaleX: 1.0,
+                  scaleY: 1.0,
+                  swipePullOffsetX: 0.0,
+                  swipePullOffsetY: 0.0,
+                  swipePullScaleY: 1.0,
+                  isDragged: true,
+                  isReordering: true,
+                  startItemDragReorder: null,
+                  onStartReorder: null,
+                  onStartDelayedReorder: null,
+                  onCancelReorder: null,
+                  onSwipeUpdate: null,
+                  onSwipeEnd: null,
+                  onItemSelect: null,
+                  swipeMode: widget.swipeMode,
+                  swipeDirection: widget.swipeDirection,
+                  buildDefaultDragHandles: false,
+                  canReorderHandle: false,
+                  child: rawChild,
+                ),
               ),
             ),
           ),
@@ -713,17 +988,8 @@ class _NixListViewState extends State<NixListView>
       itemBuilder: _buildScopedChild,
     );
 
-    // Wrap in Stack to render floating dragged card on top layer
-    Widget listContent = Stack(
-      key: _listContainerKey,
-      clipBehavior: Clip.none,
-      children: [
-        listView,
-        if (_draggedIndex != null) _buildFloatingDraggedCard(context),
-      ],
-    );
-
     // Outer segmented container
+    Widget listContent = listView;
     if (widget.enableContainer) {
       final effectiveContainerColor = widget.containerColor ??
           (nixTheme.surfaceContainer ?? colors.surfaceContainer);
@@ -741,10 +1007,21 @@ class _NixListViewState extends State<NixListView>
               math.max(0.0, widget.containerBorderRadius.topLeft.x - 2.0),
             ),
           ),
-          child: listContent,
+          child: listView,
         ),
       );
     }
+
+    // Wrap in Stack to render floating dragged card on top layer OUTSIDE container's ClipRRect
+    // so shadows, elevation and scale are never clipped!
+    listContent = Stack(
+      key: _listContainerKey,
+      clipBehavior: Clip.none,
+      children: [
+        listContent,
+        if (_draggedIndex != null) _buildFloatingDraggedCard(context),
+      ],
+    );
 
     // Apply outer list padding
     if (widget.padding != EdgeInsets.zero) {

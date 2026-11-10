@@ -12,7 +12,7 @@ class ExampleApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Nix Design Example',
-      themeMode: ThemeMode.dark,
+      themeMode: ThemeMode.system,
       theme: ThemeData(
         colorSchemeSeed: Colors.green,
         useMaterial3: true,
@@ -43,6 +43,9 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   Set<int> _selectedTrackIndices = {};
   int? _playingTrackIndex;
   late List<Map<String, String>> _playlistTracks;
+  NixSwipeMode _swipeMode = NixSwipeMode.actions;
+  NixSwipeDirection _swipeDirection = NixSwipeDirection.both;
+  NixReorderTrigger _reorderTrigger = NixReorderTrigger.both;
 
   @override
   void initState() {
@@ -177,6 +180,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
       ),
       bottomNavigationBar: NixBottomBar(
         scrollController: _scrollController,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
         currentIndex: _navIndex,
         maxWidth: 420,
         onTap: (index) => setState(() => _navIndex = index),
@@ -224,7 +228,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             label: 'Feedback',
           ),
         ],
-        action: NixIconButton.tonal(
+        action: NixIconButton.filled(
           size: NixSize.large,
           icon: const Icon(Icons.search_rounded),
           tooltip: 'Search components',
@@ -633,16 +637,113 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
         ),
         const SizedBox(height: 12),
 
-        NixCard.pill(
-          child: const Text(
-            '• Segmented Radii: 16px container, 12px outer, 6px inner.\n'
-            '• Dynamic Sealing: Playing/selected cards morph to 14px isolated pills; neighbors dynamically adapt corners!\n'
-            '• Dynamic Morphs & Swipe: Swiped card elevates with shadow & morphs to 14px; adjacent neighbors seal corners to 12px!\n'
-            '• Independent Swipe: Swipe right to favorite, swipe left to delete.',
-            style: TextStyle(fontSize: 12.5, height: 1.45),
+        // Swipe Mode & Direction Controls
+        NixCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Mode:',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              Row(
+                children: [
+                  NixFilterChip(
+                    label: const Text('Action Buttons'),
+                    selected: _swipeMode == NixSwipeMode.actions,
+                    avatar: const Icon(Icons.touch_app_rounded, size: 14),
+                    onSelected: (val) {
+                      if (val) {
+                        setState(() => _swipeMode = NixSwipeMode.actions);
+                      }
+                    },
+                  ),
+                  NixFilterChip(
+                    label: const Text('Gmail Preset'),
+                    selected: _swipeMode == NixSwipeMode.dismiss,
+                    avatar: const Icon(Icons.swipe_rounded, size: 14),
+                    onSelected: (val) {
+                      if (val) {
+                        setState(() => _swipeMode = NixSwipeMode.dismiss);
+                      }
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Direction:',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              Wrap(
+                spacing: 6,
+                children:
+                    [
+                      NixSwipeDirection.both,
+                      NixSwipeDirection.rightOnly,
+                      NixSwipeDirection.leftOnly,
+                      NixSwipeDirection.disabled,
+                    ].map((dir) {
+                      final label = switch (dir) {
+                        NixSwipeDirection.both => 'Both',
+                        NixSwipeDirection.rightOnly => 'RightOnly',
+                        NixSwipeDirection.leftOnly => 'LeftOnly',
+                        NixSwipeDirection.disabled => 'Disabled',
+                      };
+                      return NixFilterChip(
+                        label: Text(label),
+                        selected: _swipeDirection == dir,
+                        onSelected: (val) {
+                          if (val) setState(() => _swipeDirection = dir);
+                        },
+                      );
+                    }).toList(),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Reorder Trigger:',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              Wrap(
+                spacing: 6,
+                children:
+                    [
+                      NixReorderTrigger.both,
+                      NixReorderTrigger.handleOnly,
+                      NixReorderTrigger.wholeItem,
+                      NixReorderTrigger.disabled,
+                    ].map((trig) {
+                      final label = switch (trig) {
+                        NixReorderTrigger.both => 'Both',
+                        NixReorderTrigger.handleOnly => 'HandleOnly',
+                        NixReorderTrigger.wholeItem => 'WholeItem',
+                        NixReorderTrigger.disabled => 'Disabled',
+                      };
+                      return NixFilterChip(
+                        label: Text(label),
+                        selected: _reorderTrigger == trig,
+                        onSelected: (val) {
+                          if (val) setState(() => _reorderTrigger = trig);
+                        },
+                      );
+                    }).toList(),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 8),
 
         // Action Toolbar
         Row(
@@ -694,10 +795,13 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           physics: const NeverScrollableScrollPhysics(),
           reorderable: true,
           canReorderOnLongPress: true,
+          swipeMode: _swipeMode,
+          swipeDirection: _swipeDirection,
           selectionMode: _isSelectionMode
               ? NixSelectionMode.multi
               : NixSelectionMode.none,
           selectedIndices: _selectedTrackIndices,
+          reorderTrigger: _reorderTrigger,
           onSelectionChanged: (indices) {
             setState(() => _selectedTrackIndices = indices);
           },
@@ -771,8 +875,72 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             final track = _playlistTracks[index];
             final isPlayingThis = _playingTrackIndex == index;
 
-            return NixListItem(
+            if (_swipeMode == NixSwipeMode.actions) {
+              return NixListItem(
+                key: ValueKey(track['title']!),
+                isPlaying: isPlayingThis,
+                leading: Icon(
+                  isPlayingThis
+                      ? Icons.music_note_rounded
+                      : Icons.graphic_eq_rounded,
+                  color: isPlayingThis
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
+                title: Text(track['title']!),
+                subtitle: Text('${track['artist']} • ${track['duration']}'),
+                reorderHandle: const NixReorderHandle(),
+                swipeMode: NixSwipeMode.actions,
+                primaryActions: [
+                  NixSwipeAction.share(
+                    onTriggered: () {
+                      NixSnackBar.show(
+                        context,
+                        message: 'Shared "${track['title']}"',
+                      );
+                    },
+                  ),
+                  NixSwipeAction.archive(
+                    onTriggered: () {
+                      NixSnackBar.show(
+                        context,
+                        message: 'Archived "${track['title']}"',
+                      );
+                    },
+                  ),
+                ],
+                secondaryActions: [
+                  NixSwipeAction.collaborator(
+                    onTriggered: () {
+                      NixSnackBar.show(
+                        context,
+                        message: 'Added collaborator to "${track['title']}"',
+                      );
+                    },
+                  ),
+                  NixSwipeAction.edit(
+                    onTriggered: () {
+                      NixSnackBar.show(
+                        context,
+                        message: 'Editing "${track['title']}"',
+                      );
+                    },
+                  ),
+                ],
+                onTap: () {
+                  if (!_isSelectionMode) {
+                    setState(() {
+                      _playingTrackIndex = isPlayingThis ? null : index;
+                    });
+                  }
+                },
+              );
+            }
+
+            // Gmail Style UI Preset (Full Swipe-to-Dismiss)
+            return NixListItem.gmailStyle(
               key: ValueKey(track['title']!),
+              isPlaying: isPlayingThis,
               leading: Icon(
                 isPlayingThis
                     ? Icons.music_note_rounded
@@ -784,41 +952,36 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               title: Text(track['title']!),
               subtitle: Text('${track['artist']} • ${track['duration']}'),
               reorderHandle: const NixReorderHandle(),
-              leftAction: NixSwipeAction(
-                icon: const Icon(Icons.favorite_rounded),
-                label: const Text('Favorite'),
-                actionType: NixSwipeActionType.action,
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                onTriggered: () {
-                  NixSnackBar.show(
-                    context,
-                    message: 'Favorited "${track['title']}"',
-                  );
-                },
-              ),
-              rightAction: NixSwipeAction(
-                icon: const Icon(Icons.delete_outline_rounded),
-                label: const Text('Delete'),
-                actionType: NixSwipeActionType.dismiss,
-                backgroundColor: Theme.of(context).colorScheme.error,
-                foregroundColor: Theme.of(context).colorScheme.onError,
-                onTriggered: () {
-                  setState(() {
-                    _playlistTracks.removeAt(index);
-                    if (_playingTrackIndex == index) {
-                      _playingTrackIndex = null;
-                    } else if (_playingTrackIndex != null &&
-                        _playingTrackIndex! > index) {
-                      _playingTrackIndex = _playingTrackIndex! - 1;
-                    }
-                  });
-                  NixSnackBar.show(
-                    context,
-                    message: 'Deleted "${track['title']}"',
-                  );
-                },
-              ),
+              onSwipeRight: () {
+                setState(() {
+                  _playlistTracks.removeAt(index);
+                  if (_playingTrackIndex == index) {
+                    _playingTrackIndex = null;
+                  } else if (_playingTrackIndex != null &&
+                      _playingTrackIndex! > index) {
+                    _playingTrackIndex = _playingTrackIndex! - 1;
+                  }
+                });
+                NixSnackBar.show(
+                  context,
+                  message: 'Archived "${track['title']}"',
+                );
+              },
+              onSwipeLeft: () {
+                setState(() {
+                  _playlistTracks.removeAt(index);
+                  if (_playingTrackIndex == index) {
+                    _playingTrackIndex = null;
+                  } else if (_playingTrackIndex != null &&
+                      _playingTrackIndex! > index) {
+                    _playingTrackIndex = _playingTrackIndex! - 1;
+                  }
+                });
+                NixSnackBar.show(
+                  context,
+                  message: 'Deleted "${track['title']}"',
+                );
+              },
               onTap: () {
                 if (!_isSelectionMode) {
                   setState(() {
@@ -1167,13 +1330,6 @@ class _NixSearchSheetState extends State<_NixSearchSheet> {
       tabIndex: 2,
       icon: Icons.rounded_corner_rounded,
       desc: 'Dynamic segmented corner morphing & neighbor sealing',
-    ),
-    (
-      name: 'NixMusicEqualizer',
-      category: 'Lists',
-      tabIndex: 2,
-      icon: Icons.graphic_eq_rounded,
-      desc: 'Animated oscillating pill bars for active media items',
     ),
     (
       name: 'NixPopupMenu',
