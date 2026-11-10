@@ -137,4 +137,62 @@ void main() {
     expect(find.byType(NixListView), findsOneWidget);
     expect(find.text('Midnight City Waves'), findsOneWidget);
   });
+
+  testWidgets('NixBottomBar Playground toggles between standard and separated style with dynamic items', (tester) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const ExampleApp());
+    await tester.pumpAndSettle();
+
+    // Scroll to the Playground card
+    await tester.scrollUntilVisible(find.text('NixBottomBar Playground'), 200);
+    expect(find.text('NixBottomBar Playground'), findsOneWidget);
+
+    // Switch to Separated style
+    await tester.tap(find.text('Separated'));
+    await tester.pumpAndSettle();
+
+    // Switch to 2 Items
+    await tester.tap(find.text('2 Items'));
+    await tester.pumpAndSettle();
+
+    // Verify only 2 items are rendered in bottom bar
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Widgets'), findsOneWidget);
+    expect(find.text('Lists'), findsNothing);
+
+    // Verify navigation bar pill is at BottomLeft (margin is 16.0)
+    final pillFinder = find.ancestor(of: find.text('Home'), matching: find.byType(Material)).first;
+    final pillRect = tester.getRect(pillFinder);
+    expect(pillRect.left, equals(16.0));
+
+    // Verify search action button is at BottomRight (800 - 16 = 784)
+    final searchFinder = find.ancestor(of: find.byIcon(Icons.search_rounded), matching: find.byType(Material)).first;
+    final searchRect = tester.getRect(searchFinder);
+    expect(searchRect.right, equals(800.0 - 16.0));
+
+    // Switch Action Position to Bottom Left
+    await tester.tap(find.text('Bottom Left'));
+    await tester.pumpAndSettle();
+
+    final newSearchRect = tester.getRect(searchFinder);
+    expect(newSearchRect.left, equals(16.0));
+
+    final newPillRect = tester.getRect(pillFinder);
+    expect(newPillRect.right, equals(800.0 - 16.0));
+
+    // Test Item Content Types: Icon Only & Text Only
+    await tester.tap(find.text('Icon Only'));
+    await tester.pumpAndSettle();
+    expect(find.text('Home'), findsNothing); // Label is hidden in icon only mode
+    expect(find.byIcon(Icons.home_rounded), findsOneWidget); // Active icon shown
+
+    await tester.tap(find.text('Text Only'));
+    await tester.pumpAndSettle();
+    expect(find.text('Home'), findsOneWidget); // Text label restored
+    expect(find.byIcon(Icons.home_rounded), findsNothing); // Icon is hidden in text only mode
+  });
 }

@@ -38,6 +38,55 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   String? _selectedPopupItem;
   final ScrollController _scrollController = ScrollController();
 
+  // NixBottomBar playground state
+  NixBottomBarStyle _bottomBarStyle = NixBottomBarStyle.standard;
+  int _navBarItemCount = 4;
+  NixBarActionPosition _barActionPosition = NixBarActionPosition.right;
+  String _navBarContentType =
+      'icon_text'; // 'icon_text', 'icon_only', 'text_only'
+
+  List<NixBottomBarItem> get _navBarItems {
+    final allItems = [
+      NixBottomBarItem(
+        icon: _navBarContentType != 'text_only'
+            ? const Icon(Icons.home_outlined)
+            : null,
+        activeIcon: _navBarContentType != 'text_only'
+            ? const Icon(Icons.home_rounded)
+            : null,
+        label: _navBarContentType != 'icon_only' ? 'Home' : null,
+      ),
+      NixBottomBarItem(
+        icon: _navBarContentType != 'text_only'
+            ? const Icon(Icons.widgets_outlined)
+            : null,
+        activeIcon: _navBarContentType != 'text_only'
+            ? const Icon(Icons.widgets_rounded)
+            : null,
+        label: _navBarContentType != 'icon_only' ? 'Widgets' : null,
+      ),
+      NixBottomBarItem(
+        icon: _navBarContentType != 'text_only'
+            ? const Icon(Icons.view_agenda_outlined)
+            : null,
+        activeIcon: _navBarContentType != 'text_only'
+            ? const Icon(Icons.view_agenda_rounded)
+            : null,
+        label: _navBarContentType != 'icon_only' ? 'Lists' : null,
+      ),
+      NixBottomBarItem(
+        icon: _navBarContentType != 'text_only'
+            ? const Icon(Icons.layers_outlined)
+            : null,
+        activeIcon: _navBarContentType != 'text_only'
+            ? const Icon(Icons.layers_rounded)
+            : null,
+        label: _navBarContentType != 'icon_only' ? 'Feedback' : null,
+      ),
+    ];
+    return allItems.take(_navBarItemCount).toList();
+  }
+
   // NixListView state
   bool _isSelectionMode = false;
   Set<int> _selectedTrackIndices = {};
@@ -179,10 +228,9 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
         ],
       ),
       bottomNavigationBar: NixBottomBar(
+        style: _bottomBarStyle,
         scrollController: _scrollController,
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-        currentIndex: _navIndex,
-        maxWidth: 420,
+        currentIndex: _navIndex >= _navBarItems.length ? 0 : _navIndex,
         onTap: (index) => setState(() => _navIndex = index),
         onLongPress: (index) {
           final titles = ['Home', 'Widgets', 'Lists', 'Feedback'];
@@ -206,35 +254,14 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           );
         },
         hideOnScroll: false,
-        items: const [
-          NixBottomBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home_rounded),
-            label: 'Home',
-          ),
-          NixBottomBarItem(
-            icon: Icon(Icons.widgets_outlined),
-            activeIcon: Icon(Icons.widgets_rounded),
-            label: 'Widgets',
-          ),
-          NixBottomBarItem(
-            icon: Icon(Icons.view_agenda_outlined),
-            activeIcon: Icon(Icons.view_agenda_rounded),
-            label: 'Lists',
-          ),
-          NixBottomBarItem(
-            icon: Icon(Icons.layers_outlined),
-            activeIcon: Icon(Icons.layers_rounded),
-            label: 'Feedback',
-          ),
-        ],
+        items: _navBarItems,
         action: NixIconButton.filled(
           size: NixSize.large,
           icon: const Icon(Icons.search_rounded),
           tooltip: 'Search components',
           onPressed: _openSearchSheet,
         ),
-        actionPosition: NixBarActionPosition.right,
+        actionPosition: _barActionPosition,
       ),
       body: _buildCurrentTab(),
     );
@@ -395,6 +422,10 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
 
         // Popup Menu Showcase Card
         _buildPopupMenuCard(),
+        const SizedBox(height: 16),
+
+        // Navigation Bar Style Playground Card
+        _buildBottomBarConfigCard(),
       ],
     );
   }
@@ -1249,6 +1280,203 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomBarConfigCard() {
+    final theme = Theme.of(context);
+    return NixCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8.0),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+                child: Icon(
+                  Icons.dock_rounded,
+                  color: theme.colorScheme.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'NixBottomBar Playground',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Toggle standard vs separated style with dynamic items',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Bar Layout Style:',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          NixSegmentedControl<NixBottomBarStyle>(
+            value: _bottomBarStyle,
+            onChanged: (val) => setState(() => _bottomBarStyle = val),
+            items: const [
+              NixSegment(value: NixBottomBarStyle.standard, label: 'Standard'),
+              NixSegment(
+                value: NixBottomBarStyle.separated,
+                label: 'Separated',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Item Content Type (Dynamic Width):',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              NixFilterChip(
+                label: const Text('Icon & Text'),
+                selected: _navBarContentType == 'icon_text',
+                onSelected: (selected) {
+                  if (selected) setState(() => _navBarContentType = 'icon_text');
+                },
+              ),
+              const SizedBox(width: 8),
+              NixFilterChip(
+                label: const Text('Icon Only'),
+                selected: _navBarContentType == 'icon_only',
+                onSelected: (selected) {
+                  if (selected) setState(() => _navBarContentType = 'icon_only');
+                },
+              ),
+              const SizedBox(width: 8),
+              NixFilterChip(
+                label: const Text('Text Only'),
+                selected: _navBarContentType == 'text_only',
+                onSelected: (selected) {
+                  if (selected) setState(() => _navBarContentType = 'text_only');
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Navigation Items Count (Dynamic Width):',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              for (final count in [2, 3, 4])
+                Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: NixFilterChip(
+                    label: Text('$count Items'),
+                    selected: _navBarItemCount == count,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() {
+                          _navBarItemCount = count;
+                          if (_navIndex >= count) _navIndex = 0;
+                        });
+                      }
+                    },
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Action Button Position:',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              NixFilterChip(
+                label: const Text('Bottom Right'),
+                selected: _barActionPosition == NixBarActionPosition.right,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(
+                      () => _barActionPosition = NixBarActionPosition.right,
+                    );
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              NixFilterChip(
+                label: const Text('Bottom Left'),
+                selected: _barActionPosition == NixBarActionPosition.left,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(
+                      () => _barActionPosition = NixBarActionPosition.left,
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.5,
+              ),
+              borderRadius: BorderRadius.circular(10.0),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.lightbulb_outline_rounded,
+                  size: 16,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _bottomBarStyle == NixBottomBarStyle.separated
+                        ? 'Separated style active: Bar width dynamically adapts to its child items (icon/text, icon only, text only) at BottomLeft with generous touch targets, while the action button floats at BottomRight.'
+                        : 'Standard style active: Bar width dynamically adapts to its child items (icon/text, icon only, text only) as default, clustered in the center with the action button.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

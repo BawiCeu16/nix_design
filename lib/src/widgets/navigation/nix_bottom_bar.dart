@@ -16,6 +16,19 @@ enum NixBarActionPosition {
   right,
 }
 
+/// Visual layout style for [NixBottomBar].
+enum NixBottomBarStyle {
+  /// Default unified style: the navigation bar and side companion action button
+  /// sit together as a unified cluster (centered or filling the allocated width).
+  standard,
+
+  /// Dynamic separated style: the navigation bar pill and the action button are separated.
+  /// When items are few (e.g. 2, 3 items) or dynamically sized, the navigation bar pill
+  /// hugs its items at the bottom-left, while the action button floats at the bottom-right
+  /// with dynamic spacing between them.
+  separated,
+}
+
 /// Label visibility behavior for [NixBottomBar].
 enum NixNavigationLabelBehavior {
   /// Always display labels alongside or under icons.
@@ -94,7 +107,7 @@ class NixBottomBar extends StatefulWidget {
     this.onLongPress,
     this.equalWidth = true,
     this.itemWidth,
-    this.maxWidth = 560.0,
+    this.maxWidth,
     this.height,
     this.action,
     this.actionPosition = NixBarActionPosition.right,
@@ -121,9 +134,54 @@ class NixBottomBar extends StatefulWidget {
     ),
     this.animationDuration = const Duration(milliseconds: 250),
     this.animationCurve = Curves.easeOutCubic,
-    this.mainAxisSize = MainAxisSize.max,
+    this.mainAxisSize = MainAxisSize.min,
     this.alignment = Alignment.bottomCenter,
+    this.style = NixBottomBarStyle.standard,
   });
+
+  /// Creates a separated [NixBottomBar] where the navigation bar pill sits at the bottom-left
+  /// and its companion action button sits at the bottom-right.
+  ///
+  /// Specially optimized for 2, 3, or dynamic items where the navigation bar hugs its items
+  /// as a compact floating pill, separated from the action button with dynamic spacing.
+  const NixBottomBar.separated({
+    super.key,
+    required this.items,
+    required this.currentIndex,
+    required this.onTap,
+    this.onLongPress,
+    this.equalWidth = true,
+    this.itemWidth,
+    this.maxWidth,
+    this.height,
+    this.action,
+    this.actionPosition = NixBarActionPosition.right,
+    this.leading,
+    this.trailing,
+    this.actionSpacing = 10.0,
+    this.scrollController,
+    this.hideOnScroll = true,
+    this.shrinkOnScroll = true,
+    this.shrinkScale = 0.92,
+    this.labelBehavior = NixNavigationLabelBehavior.alwaysShow,
+    this.enableGestureSliding = true,
+    this.backgroundColor,
+    this.borderColor,
+    this.selectedItemColor,
+    this.unselectedItemColor,
+    this.indicatorColor,
+    this.elevation = 0.0,
+    this.margin = const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 14.0),
+    this.padding = const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+    this.itemPadding = const EdgeInsets.symmetric(
+      horizontal: 6.0,
+      vertical: 6.0,
+    ),
+    this.animationDuration = const Duration(milliseconds: 250),
+    this.animationCurve = Curves.easeOutCubic,
+    this.mainAxisSize = MainAxisSize.min,
+    this.alignment = Alignment.bottomCenter,
+  }) : style = NixBottomBarStyle.separated;
 
   /// The list of navigation items.
   final List<NixBottomBarItem> items;
@@ -240,6 +298,13 @@ class NixBottomBar extends StatefulWidget {
 
   /// Alignment of the floating bar in its container (defaults to `Alignment.bottomCenter`).
   final AlignmentGeometry alignment;
+
+  /// Layout and visual style for the navigation bar and its companion action button.
+  ///
+  /// - [NixBottomBarStyle.standard]: Clustered/unified bar and action button (default).
+  /// - [NixBottomBarStyle.separated]: Separated navigation bar pill at bottom-left
+  ///   and companion action button at bottom-right.
+  final NixBottomBarStyle style;
 
   @override
   State<NixBottomBar> createState() => _NixBottomBarState();
@@ -523,10 +588,16 @@ class _NixBottomBarState extends State<NixBottomBar>
         ? (_dragActiveIndex ?? _indicatorPosition.round())
         : _indicatorPosition.round();
 
+    final effectiveMainAxisSize =
+        widget.style == NixBottomBarStyle.separated &&
+                widget.mainAxisSize == MainAxisSize.max
+            ? MainAxisSize.min
+            : widget.mainAxisSize;
+
     // 1. Navigation items layout with integrated sliding indicator:
     Widget itemsSection = _NixBarLayout(
       key: _itemsContainerKey,
-      mainAxisSize: widget.mainAxisSize,
+      mainAxisSize: effectiveMainAxisSize,
       equalWidth: widget.equalWidth,
       indicatorPosition: _indicatorPosition,
       indicatorColor: indBg,
@@ -589,32 +660,91 @@ class _NixBottomBarState extends State<NixBottomBar>
 
     // 4. Assemble the complete floating bar group:
     Widget fullBar;
-    if (leftAction == null && rightAction == null) {
-      fullBar = navBarPill;
+    if (widget.style == NixBottomBarStyle.separated) {
+      if (leftAction != null && rightAction != null) {
+        fullBar = Row(
+          mainAxisSize: MainAxisSize.max,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Padding(
+              padding: EdgeInsets.only(right: widget.actionSpacing),
+              child: leftAction,
+            ),
+            Flexible(fit: FlexFit.loose, child: navBarPill),
+            Padding(
+              padding: EdgeInsets.only(left: widget.actionSpacing),
+              child: rightAction,
+            ),
+          ],
+        );
+      } else if (rightAction != null) {
+        // Navigation bar at BottomLeft, Action button at BottomRight!
+        fullBar = Row(
+          mainAxisSize: MainAxisSize.max,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Flexible(fit: FlexFit.loose, child: navBarPill),
+            Padding(
+              padding: EdgeInsets.only(left: widget.actionSpacing),
+              child: rightAction,
+            ),
+          ],
+        );
+      } else if (leftAction != null) {
+        // Action button at BottomLeft, Navigation bar at BottomRight!
+        fullBar = Row(
+          mainAxisSize: MainAxisSize.max,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Padding(
+              padding: EdgeInsets.only(right: widget.actionSpacing),
+              child: leftAction,
+            ),
+            Flexible(fit: FlexFit.loose, child: navBarPill),
+          ],
+        );
+      } else {
+        // No companion action: navigation bar pill hugs items at BottomLeft!
+        fullBar = Align(
+          alignment: Alignment.bottomLeft,
+          child: navBarPill,
+        );
+      }
     } else {
-      fullBar = Row(
-        mainAxisSize: widget.mainAxisSize,
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          if (leftAction != null) ...[
-            leftAction,
-            SizedBox(width: widget.actionSpacing),
+      if (leftAction == null && rightAction == null) {
+        fullBar = navBarPill;
+      } else {
+        fullBar = Row(
+          mainAxisSize: widget.mainAxisSize,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (leftAction != null) ...[
+              Padding(
+                padding: EdgeInsets.only(right: widget.actionSpacing),
+                child: leftAction,
+              ),
+            ],
+            if (widget.mainAxisSize == MainAxisSize.max)
+              Expanded(child: navBarPill)
+            else
+              Flexible(fit: FlexFit.loose, child: navBarPill),
+            if (rightAction != null) ...[
+              Padding(
+                padding: EdgeInsets.only(left: widget.actionSpacing),
+                child: rightAction,
+              ),
+            ],
           ],
-          if (widget.mainAxisSize == MainAxisSize.max)
-            Expanded(child: navBarPill)
-          else
-            Flexible(child: navBarPill),
-          if (rightAction != null) ...[
-            SizedBox(width: widget.actionSpacing),
-            rightAction,
-          ],
-        ],
-      );
+        );
+      }
     }
 
     // Dynamic width constraint: ensures the floating bar maintains an elegant,
-    // proportional width on wide screens (tablets, landscape, desktop) while expanding on phones.
+    // proportional width when an explicit maxWidth constraint is specified.
     final double? effectiveMaxWidth = widget.maxWidth;
     if (effectiveMaxWidth != null && effectiveMaxWidth.isFinite) {
       fullBar = ConstrainedBox(
@@ -727,12 +857,11 @@ class _NixBottomBarState extends State<NixBottomBar>
       }
 
       final hasIcon = iconWidget != null;
-      final showLabel =
-          item.label != null &&
+      final canShowLabel = item.label != null &&
+          widget.labelBehavior != NixNavigationLabelBehavior.alwaysHide;
+      final showLabel = canShowLabel &&
           (widget.labelBehavior == NixNavigationLabelBehavior.alwaysShow ||
-              (widget.labelBehavior ==
-                      NixNavigationLabelBehavior.onlySelected &&
-                  isSelected));
+              isSelected);
 
       if (hasIcon && showLabel) {
         // Label placed UNDER the icon
@@ -782,18 +911,43 @@ class _NixBottomBarState extends State<NixBottomBar>
       }
     }
 
+    // Compute dynamic width constraint based on child content type (icon+text, icon only, text only):
+    double minItemWidth = 58.0;
+    if (item.child != null) {
+      minItemWidth = 64.0;
+    } else {
+      final hasIcon = item.icon != null;
+      final canShowLabel = item.label != null &&
+          widget.labelBehavior != NixNavigationLabelBehavior.alwaysHide;
+      if (hasIcon && canShowLabel) {
+        // Icon + Text: dynamic width proportional to label length with comfortable breathing room
+        final labelLen = item.label!.length;
+        minItemWidth = math.max(76.0, labelLen * 8.0 + 32.0);
+      } else if (!hasIcon && item.label != null) {
+        // Text only: dynamic width proportional to label text
+        final labelLen = item.label!.length;
+        minItemWidth = math.max(72.0, labelLen * 8.5 + 32.0);
+      } else if (hasIcon) {
+        // Icon only: comfortable touch target
+        minItemWidth = 58.0;
+      }
+    }
+
     final hasLongPress = item.onLongPress != null || widget.onLongPress != null;
 
     // Pure gesture detector with no InkWell press/ripple effect:
-    Widget itemWidget = GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      onLongPress: hasLongPress ? () => _handleItemLongPress(index) : null,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          padding: padding,
-          child: Center(widthFactor: 1.0, heightFactor: 1.0, child: content),
+    Widget itemWidget = ConstrainedBox(
+      constraints: BoxConstraints(minWidth: minItemWidth),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        onLongPress: hasLongPress ? () => _handleItemLongPress(index) : null,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            padding: padding,
+            child: Center(widthFactor: 1.0, heightFactor: 1.0, child: content),
+          ),
         ),
       ),
     );
@@ -1055,7 +1209,7 @@ class _RenderNixBar extends RenderBox
           if (w.isFinite && w > maxIntrinsic) maxIntrinsic = w;
           child = (child.parentData! as _NixBarParentData).nextSibling;
         }
-        if (maxIntrinsic == 0.0) maxIntrinsic = 64.0;
+        if (maxIntrinsic < 56.0) maxIntrinsic = 56.0;
         if (constraints.hasBoundedWidth) {
           childWidth = math.min(
             maxIntrinsic,
@@ -1126,7 +1280,7 @@ class _RenderNixBar extends RenderBox
           if (w.isFinite && w > maxIntrinsic) maxIntrinsic = w;
           child = (child.parentData! as _NixBarParentData).nextSibling;
         }
-        if (maxIntrinsic == 0.0) maxIntrinsic = 64.0;
+        if (maxIntrinsic < 56.0) maxIntrinsic = 56.0;
         if (constraints.hasBoundedWidth) {
           childWidth = math.min(
             maxIntrinsic,

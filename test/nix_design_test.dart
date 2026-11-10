@@ -861,6 +861,8 @@ void main() {
             bottomNavigationBar: StatefulBuilder(
               builder: (context, setState) {
                 return NixBottomBar(
+                  mainAxisSize: MainAxisSize.max,
+                  maxWidth: 560.0,
                   currentIndex: selectedIndex,
                   onTap: (idx) => setState(() => selectedIndex = idx),
                   items: const [
@@ -988,6 +990,216 @@ void main() {
       final unshrunkMargin = tester.widget<Padding>(paddingFinder).padding as EdgeInsets;
       expect(unshrunkMargin.bottom, equals(14.0));
       expect(selectedIndex, equals(1));
+    });
+
+    testWidgets('NixBottomBarStyle.separated with 2 or 3 items hugs items at BottomLeft and places ActionButton at BottomRight', (tester) async {
+      int selectedIndex = 0;
+      bool actionTapped = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: StatefulBuilder(
+              builder: (context, setState) {
+                return NixBottomBar.separated(
+                  currentIndex: selectedIndex,
+                  onTap: (idx) => setState(() => selectedIndex = idx),
+                  items: const [
+                    NixBottomBarItem(icon: Icon(Icons.home), label: 'Home'),
+                    NixBottomBarItem(icon: Icon(Icons.chat), label: 'Chat'),
+                  ],
+                  action: NixIconButton.filled(
+                    key: const ValueKey('action_btn'),
+                    icon: const Icon(Icons.add),
+                    onPressed: () => actionTapped = true,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Find the navigation pill Material and the action button
+      final pillFinder = find.descendant(
+        of: find.byType(NixBottomBar),
+        matching: find.byType(Material),
+      ).first;
+      final pillRect = tester.getRect(pillFinder);
+
+      final actionFinder = find.byKey(const ValueKey('action_btn'));
+      expect(actionFinder, findsOneWidget);
+      final actionRect = tester.getRect(actionFinder);
+
+      // Verify NavigationBar pill is at BottomLeft (margin is 16.0)
+      expect(pillRect.left, equals(16.0));
+
+      // Verify NavigationBar pill is compact for 2 items (not stretched to screen width)
+      expect(pillRect.width, lessThan(200.0));
+
+      // Verify ActionButton is at BottomRight (screen width 800 by default, margin is 16.0)
+      expect(actionRect.right, equals(800.0 - 16.0));
+
+      // Verify there is a wide separated dynamic gap between pill and action button
+      expect(actionRect.left - pillRect.right, greaterThan(400.0));
+
+      // Test tapping items and action
+      await tester.tap(find.text('Chat'));
+      await tester.pumpAndSettle();
+      expect(selectedIndex, equals(1));
+
+      await tester.tap(actionFinder);
+      await tester.pumpAndSettle();
+      expect(actionTapped, isTrue);
+    });
+
+    testWidgets('NixBottomBar.separated with actionPosition.left places ActionButton at BottomLeft and NavigationBar at BottomRight', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: NixBottomBar.separated(
+              currentIndex: 0,
+              onTap: (_) {},
+              actionPosition: NixBarActionPosition.left,
+              items: const [
+                NixBottomBarItem(icon: Icon(Icons.home), label: 'Home'),
+                NixBottomBarItem(icon: Icon(Icons.explore), label: 'Explore'),
+                NixBottomBarItem(icon: Icon(Icons.person), label: 'Profile'),
+              ],
+              action: NixIconButton.filled(
+                key: const ValueKey('left_action_btn'),
+                icon: const Icon(Icons.menu),
+                onPressed: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final actionFinder = find.byKey(const ValueKey('left_action_btn'));
+      final actionRect = tester.getRect(actionFinder);
+
+      final pillFinder = find.ancestor(
+        of: find.text('Home'),
+        matching: find.byType(Material),
+      ).first;
+      final pillRect = tester.getRect(pillFinder);
+
+      // ActionButton is at BottomLeft
+      expect(actionRect.left, equals(16.0));
+
+      // NavigationBar pill is at BottomRight
+      expect(pillRect.right, equals(800.0 - 16.0));
+
+      // Dynamic gap separates them
+      expect(pillRect.left - actionRect.right, greaterThan(300.0));
+    });
+
+    testWidgets('in standard by default bar width is dynamic based on NavigationBar children (icon/text, icon only, text only)', (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      // Test 1: Icon + Text (2 items) -> hugs dynamically, not stretched across 560px
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: NixBottomBar(
+              currentIndex: 0,
+              onTap: (_) {},
+              items: const [
+                NixBottomBarItem(icon: Icon(Icons.home), label: 'Home'),
+                NixBottomBarItem(icon: Icon(Icons.widgets), label: 'Widgets'),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final pillFinder = find.descendant(of: find.byType(NixBottomBar), matching: find.byType(Material)).first;
+      final iconTextPillSize = tester.getSize(pillFinder);
+
+      // Dynamic width for 2 items is well below 250px and not stretched to 560px
+      expect(iconTextPillSize.width, lessThan(250.0));
+      expect(iconTextPillSize.width, greaterThan(150.0));
+
+      // Test 2: Icon Only (2 items) -> even more compact
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: NixBottomBar(
+              currentIndex: 0,
+              onTap: (_) {},
+              items: const [
+                NixBottomBarItem(icon: Icon(Icons.home)),
+                NixBottomBarItem(icon: Icon(Icons.widgets)),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final iconOnlyPillSize = tester.getSize(pillFinder);
+      expect(iconOnlyPillSize.width, lessThan(iconTextPillSize.width));
+      expect(iconOnlyPillSize.width, greaterThan(100.0));
+
+      // Test 3: Text Only (2 items)
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: NixBottomBar(
+              currentIndex: 0,
+              onTap: (_) {},
+              items: const [
+                NixBottomBarItem(label: 'Home'),
+                NixBottomBarItem(label: 'Widgets'),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final textOnlyPillSize = tester.getSize(pillFinder);
+      expect(textOnlyPillSize.width, lessThan(250.0));
+      expect(textOnlyPillSize.width, greaterThan(140.0));
+    });
+
+    testWidgets('in separated by default bar width is dynamic based on NavigationBar children without being too narrow', (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      // 2 icon+text items in separated mode
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: NixBottomBar.separated(
+              currentIndex: 0,
+              onTap: (_) {},
+              items: const [
+                NixBottomBarItem(icon: Icon(Icons.home), label: 'Home'),
+                NixBottomBarItem(icon: Icon(Icons.widgets), label: 'Widgets'),
+              ],
+              action: const Icon(Icons.search),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final pillFinder = find.ancestor(of: find.text('Home'), matching: find.byType(Material)).first;
+      final pillSize = tester.getSize(pillFinder);
+
+      // Comfortable dynamic width for touch, not squished at 112px
+      expect(pillSize.width, greaterThan(150.0));
+      expect(pillSize.width, lessThan(250.0));
     });
   });
 
