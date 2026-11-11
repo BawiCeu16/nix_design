@@ -482,4 +482,41 @@ void main() {
       expect(find.text('3:45'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'Toggles DynamicSchemeVariant.expressive via toggle button and updates theme',
+    (tester) async {
+      await tester.pumpWidget(const ExampleApp());
+      await tester.pumpAndSettle();
+
+      // Expressive toggle chip is rendered in Theme & Colors card
+      expect(find.text('Expressive'), findsOneWidget);
+
+      // Verify initial theme uses DynamicSchemeVariant.expressive (active)
+      final initialContext = tester.element(find.byType(ExampleHomePage));
+      final initialScope = AppThemeScope.of(initialContext);
+      expect(initialScope.useExpressiveScheme, isTrue);
+
+      // Tap the Expressive toggle button in the card header
+      await tester.tap(find.text('Expressive'));
+      await tester.pumpAndSettle();
+
+      // Verify theme scope updated to disabled
+      final updatedContext = tester.element(find.byType(ExampleHomePage));
+      final updatedScope = AppThemeScope.of(updatedContext);
+      expect(updatedScope.useExpressiveScheme, isFalse);
+
+      // Tap the AppBar auto_awesome toggle button to enable it again
+      final appBarToggle = find.byTooltip(
+        'Expressive Scheme: OFF (DynamicSchemeVariant.tonalSpot)',
+      );
+      expect(appBarToggle, findsOneWidget);
+      await tester.tap(appBarToggle);
+      await tester.pumpAndSettle();
+
+      final reenabledContext = tester.element(find.byType(ExampleHomePage));
+      final reenabledScope = AppThemeScope.of(reenabledContext);
+      expect(reenabledScope.useExpressiveScheme, isTrue);
+    },
+  );
 }

@@ -15,6 +15,7 @@ class ExampleApp extends StatefulWidget {
 class _ExampleAppState extends State<ExampleApp> {
   ThemeMode _themeMode = ThemeMode.system;
   Color _seedColor = const Color(0xFF10B981); // Emerald Green default
+  bool _useExpressiveScheme = true;
 
   void _updateThemeMode(ThemeMode mode) {
     setState(() => _themeMode = mode);
@@ -24,25 +25,46 @@ class _ExampleAppState extends State<ExampleApp> {
     setState(() => _seedColor = color);
   }
 
+  void _updateExpressiveScheme(bool value) {
+    setState(() => _useExpressiveScheme = value);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final lightColorScheme = ColorScheme.fromSeed(
+      seedColor: _seedColor,
+      brightness: Brightness.light,
+      dynamicSchemeVariant: _useExpressiveScheme
+          ? DynamicSchemeVariant.expressive
+          : DynamicSchemeVariant.tonalSpot,
+    );
+    final darkColorScheme = ColorScheme.fromSeed(
+      seedColor: _seedColor,
+      brightness: Brightness.dark,
+      dynamicSchemeVariant: _useExpressiveScheme
+          ? DynamicSchemeVariant.expressive
+          : DynamicSchemeVariant.tonalSpot,
+    );
+
     return AppThemeScope(
       themeMode: _themeMode,
       seedColor: _seedColor,
+      useExpressiveScheme: _useExpressiveScheme,
       onThemeModeChanged: _updateThemeMode,
       onSeedColorChanged: _updateSeedColor,
+      onExpressiveSchemeChanged: _updateExpressiveScheme,
       child: MaterialApp(
         title: 'Nix Design System',
         debugShowCheckedModeBanner: false,
         themeMode: _themeMode,
         theme: ThemeData(
-          colorSchemeSeed: _seedColor,
+          colorScheme: lightColorScheme,
           brightness: Brightness.light,
           useMaterial3: true,
           splashFactory: NoSplash.splashFactory,
         ),
         darkTheme: ThemeData(
-          colorSchemeSeed: _seedColor,
+          colorScheme: darkColorScheme,
           brightness: Brightness.dark,
           useMaterial3: true,
           splashFactory: NoSplash.splashFactory,
@@ -59,15 +81,19 @@ class AppThemeScope extends InheritedWidget {
     super.key,
     required this.themeMode,
     required this.seedColor,
+    required this.useExpressiveScheme,
     required this.onThemeModeChanged,
     required this.onSeedColorChanged,
+    required this.onExpressiveSchemeChanged,
     required super.child,
   });
 
   final ThemeMode themeMode;
   final Color seedColor;
+  final bool useExpressiveScheme;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final ValueChanged<Color> onSeedColorChanged;
+  final ValueChanged<bool> onExpressiveSchemeChanged;
 
   static AppThemeScope of(BuildContext context) {
     return context.dependOnInheritedWidgetOfExactType<AppThemeScope>()!;
@@ -75,7 +101,9 @@ class AppThemeScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(AppThemeScope oldWidget) {
-    return themeMode != oldWidget.themeMode || seedColor != oldWidget.seedColor;
+    return themeMode != oldWidget.themeMode ||
+        seedColor != oldWidget.seedColor ||
+        useExpressiveScheme != oldWidget.useExpressiveScheme;
   }
 }
 
@@ -251,11 +279,27 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeScope = AppThemeScope.of(context);
+
     return Scaffold(
       extendBody: true,
       appBar: AppBar(
         title: const Text('Nix Design System'),
         actions: [
+          NixIconButton.tonal(
+            icon: Icon(
+              themeScope.useExpressiveScheme
+                  ? Icons.auto_awesome
+                  : Icons.auto_awesome_outlined,
+            ),
+            tooltip: themeScope.useExpressiveScheme
+                ? 'Expressive Scheme: ON (DynamicSchemeVariant.expressive)'
+                : 'Expressive Scheme: OFF (DynamicSchemeVariant.tonalSpot)',
+            onPressed: () => themeScope.onExpressiveSchemeChanged(
+              !themeScope.useExpressiveScheme,
+            ),
+          ),
+          const SizedBox(width: 8),
           NixIconButton.tonal(
             icon: const Icon(Icons.info_outline),
             tooltip: 'About Dialog',
@@ -516,6 +560,17 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
+                ),
+              ),
+              Tooltip(
+                message: themeScope.useExpressiveScheme
+                    ? 'DynamicSchemeVariant.expressive active'
+                    : 'DynamicSchemeVariant.tonalSpot active',
+                child: NixFilterChip(
+                  label: const Text('Expressive'),
+                  selected: themeScope.useExpressiveScheme,
+                  onSelected: (val) =>
+                      themeScope.onExpressiveSchemeChanged(val),
                 ),
               ),
             ],
