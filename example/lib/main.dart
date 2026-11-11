@@ -5,23 +5,90 @@ void main() {
   runApp(const ExampleApp());
 }
 
-class ExampleApp extends StatelessWidget {
+class ExampleApp extends StatefulWidget {
   const ExampleApp({super.key});
 
   @override
+  State<ExampleApp> createState() => _ExampleAppState();
+}
+
+class _ExampleAppState extends State<ExampleApp> {
+  ThemeMode _themeMode = ThemeMode.system;
+  Color _seedColor = const Color(0xFF10B981); // Emerald Green default
+
+  void _updateThemeMode(ThemeMode mode) {
+    setState(() => _themeMode = mode);
+  }
+
+  void _updateSeedColor(Color color) {
+    setState(() => _seedColor = color);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Nix Design Example',
-      themeMode: ThemeMode.system,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.green,
-        useMaterial3: true,
-        splashFactory: NoSplash.splashFactory,
+    return AppThemeScope(
+      themeMode: _themeMode,
+      seedColor: _seedColor,
+      onThemeModeChanged: _updateThemeMode,
+      onSeedColorChanged: _updateSeedColor,
+      child: MaterialApp(
+        title: 'Nix Design System',
+        debugShowCheckedModeBanner: false,
+        themeMode: _themeMode,
+        theme: ThemeData(
+          colorSchemeSeed: _seedColor,
+          brightness: Brightness.light,
+          useMaterial3: true,
+          splashFactory: NoSplash.splashFactory,
+        ),
+        darkTheme: ThemeData(
+          colorSchemeSeed: _seedColor,
+          brightness: Brightness.dark,
+          useMaterial3: true,
+          splashFactory: NoSplash.splashFactory,
+        ),
+        home: const ExampleHomePage(),
       ),
-      home: const ExampleHomePage(),
     );
   }
 }
+
+/// Provides reactive theme mode and seed color state across the example app.
+class AppThemeScope extends InheritedWidget {
+  const AppThemeScope({
+    super.key,
+    required this.themeMode,
+    required this.seedColor,
+    required this.onThemeModeChanged,
+    required this.onSeedColorChanged,
+    required super.child,
+  });
+
+  final ThemeMode themeMode;
+  final Color seedColor;
+  final ValueChanged<ThemeMode> onThemeModeChanged;
+  final ValueChanged<Color> onSeedColorChanged;
+
+  static AppThemeScope of(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<AppThemeScope>()!;
+  }
+
+  @override
+  bool updateShouldNotify(AppThemeScope oldWidget) {
+    return themeMode != oldWidget.themeMode || seedColor != oldWidget.seedColor;
+  }
+}
+
+/// Predefined vibrant theme seed colors.
+const List<({String name, Color color})> kAppThemeColors = [
+  (name: 'Emerald', color: Color(0xFF10B981)),
+  (name: 'Blue', color: Color(0xFF2563EB)),
+  (name: 'Indigo', color: Color(0xFF6366F1)),
+  (name: 'Purple', color: Color(0xFF9333EA)),
+  (name: 'Amber', color: Color(0xFFF59E0B)),
+  (name: 'Rose', color: Color(0xFFF43F5E)),
+  (name: 'Teal', color: Color(0xFF0D9488)),
+];
 
 class ExampleHomePage extends StatefulWidget {
   const ExampleHomePage({super.key});
@@ -199,9 +266,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                   icon: const Icon(Icons.celebration_rounded),
                   title: const Text('Nix Design System'),
                   content: const Text(
-                    'Pure pill-styled design system for Flutter.\n\n'
-                    'Floating Navigation Tip:\n'
-                    'When using NixBottomBar, add "extendBody: true" to your Scaffold so that your body content extends and scrolls smoothly underneath the floating pill navigation bar.',
+                    'Pill-first, theme-reactive Flutter design system with fluid physics, responsive scaling, and native ergonomics.',
                   ),
                   actions: [
                     NixButton.text(
@@ -370,48 +435,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
         ),
         const SizedBox(height: 16),
 
-        // Quick Category Navigation Cards
-        Text(
-          'Component Categories',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: _buildCategoryCard(
-                icon: Icons.widgets_rounded,
-                title: 'Controls',
-                subtitle: 'Buttons, Inputs',
-                tabIndex: 1,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildCategoryCard(
-                icon: Icons.view_agenda_rounded,
-                title: 'List View',
-                subtitle: 'Corner Morphs',
-                tabIndex: 2,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildCategoryCard(
-                icon: Icons.layers_rounded,
-                title: 'Feedback',
-                subtitle: 'Popups, Overlays',
-                tabIndex: 3,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-
-        // Featured Interactive Controls
+        // 1. Featured Interactive Controls (immediately visible on initial load)
         NixSegmentedControl<int>(
           value: _segmentedValue,
           onChanged: (val) => setState(() => _segmentedValue = val),
@@ -451,41 +475,214 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
         ),
         const SizedBox(height: 16),
 
+        // 2. Theme Mode (Dark, Light, System) and Seed Colors
+        _buildThemeConfigCard(),
+        const SizedBox(height: 16),
+
         // Popup Menu Showcase Card
         _buildPopupMenuCard(),
         const SizedBox(height: 16),
 
         // Navigation Bar Style Playground Card
         _buildBottomBarConfigCard(),
+        const SizedBox(height: 16),
+
+        // 3. Component Navigator organized with NixListView
+        _buildComponentNavigatorCard(),
       ],
     );
   }
 
-  Widget _buildCategoryCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required int tabIndex,
-  }) {
+  Widget _buildThemeConfigCard() {
+    final theme = Theme.of(context);
+    final themeScope = AppThemeScope.of(context);
+
     return NixCard(
-      onTap: () => setState(() => _navIndex = tabIndex),
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
+      padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 22),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          Row(
+            children: [
+              Icon(
+                Icons.palette_outlined,
+                size: 20,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Theme & Colors',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: 11,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+          const SizedBox(height: 14),
+          NixSegmentedControl<ThemeMode>(
+            value: themeScope.themeMode,
+            onChanged: themeScope.onThemeModeChanged,
+            items: const [
+              NixSegment(value: ThemeMode.system, label: 'System'),
+              NixSegment(value: ThemeMode.light, label: 'Light'),
+              NixSegment(value: ThemeMode.dark, label: 'Dark'),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10.0,
+            runSpacing: 8.0,
+            children: [
+              for (final entry in kAppThemeColors)
+                Tooltip(
+                  message: entry.name,
+                  child: InkWell(
+                    onTap: () => themeScope.onSeedColorChanged(entry.color),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: entry.color,
+                        shape: BoxShape.circle,
+                        border: themeScope.seedColor == entry.color
+                            ? Border.all(color: Colors.white, width: 3)
+                            : null,
+                        boxShadow: [
+                          BoxShadow(
+                            color: entry.color.withValues(alpha: 0.35),
+                            blurRadius: themeScope.seedColor == entry.color
+                                ? 8
+                                : 3,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: themeScope.seedColor == entry.color
+                          ? const Center(
+                              child: Icon(
+                                Icons.check,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildComponentNavigatorCard() {
+    final theme = Theme.of(context);
+
+    return NixCard(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.navigation_rounded,
+                size: 20,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Component Navigator',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          NixListView(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              NixListItem(
+                key: const ValueKey('nav_buttons'),
+                leading: const Icon(Icons.smart_button_rounded),
+                title: const Text('NixButton & NixIconButton'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NixButtonsPage()),
+                ),
+              ),
+              NixListItem(
+                key: const ValueKey('nav_wave_slider'),
+                leading: const Icon(Icons.waves_rounded),
+                title: const Text('NixWaveSlider (Music Scrubber)'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NixWaveSliderPage()),
+                ),
+              ),
+              NixListItem(
+                key: const ValueKey('nav_switches'),
+                leading: const Icon(Icons.toggle_on_rounded),
+                title: const Text('NixSwitch & NixSwitchTile'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NixSwitchesPage()),
+                ),
+              ),
+              NixListItem(
+                key: const ValueKey('nav_expandable'),
+                leading: const Icon(Icons.unfold_more_rounded),
+                title: const Text('NixExpandable & Native Sheet'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NixExpandablePage()),
+                ),
+              ),
+              NixListItem(
+                key: const ValueKey('nav_bottom_bar'),
+                leading: const Icon(Icons.navigation_rounded),
+                title: const Text('NixBottomBar (Floating Navigation Bar)'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NixBottomBarPage()),
+                ),
+              ),
+              NixListItem(
+                key: const ValueKey('nav_lists'),
+                leading: const Icon(Icons.view_list_rounded),
+                title: const Text('Dynamic Corner Morphs (NixListView)'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const NixListsPage())),
+              ),
+              NixListItem(
+                key: const ValueKey('nav_feedback'),
+                leading: const Icon(Icons.notifications_active_rounded),
+                title: const Text('Feedback & SnackBars'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NixFeedbackPage()),
+                ),
+              ),
+              NixListItem(
+                key: const ValueKey('nav_popup'),
+                leading: const Icon(Icons.menu_rounded),
+                title: const Text('NixPopupMenu (Dual Gesture)'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const NixPopupPage())),
+              ),
+            ],
           ),
         ],
       ),
@@ -846,24 +1043,10 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Native Sheet: Releases v1 to v9',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          'Flutter native sheet with NixExpandable & Single/Multi toggles',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      'Native Sheet: Releases v1 to v9',
+                      style: Theme.of(context).textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -989,14 +1172,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                   'NixListView & Physics',
                   style: Theme.of(context).textTheme.headlineSmall
                       ?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Segmented corners, squish physics & gestures',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 13,
-                  ),
                 ),
               ],
             ),
@@ -1388,13 +1563,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           style: Theme.of(context).textTheme.headlineSmall
               ?.copyWith(fontWeight: FontWeight.bold),
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Origin-aware animated popups, floating pill snackbars, and responsive dialogs.',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
         const SizedBox(height: 16),
 
         _buildPopupMenuCard(),
@@ -1509,30 +1677,13 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Custom Popup Menu (Dual Gesture & Dynamic Corners)',
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Dual gesture: Tap to open or hold-drag-release',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  'Custom Popup Menu (Dual Gesture & Dynamic Corners)',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Dynamic segmented corners: 16px container (4px pad, 2px gap), top 12px / bottom 6px on first item, 6px inner, and top 6px / bottom 12px on last item.',
-            style: TextStyle(fontSize: 13),
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -1662,13 +1813,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                       'NixBottomBar Playground',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Toggle standard vs separated style with dynamic items',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -1807,38 +1951,6 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             ),
             value: _enableNavBarShrink,
             onChanged: (val) => setState(() => _enableNavBarShrink = val),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12.0),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withValues(
-                alpha: 0.5,
-              ),
-              borderRadius: BorderRadius.circular(10.0),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.lightbulb_outline_rounded,
-                  size: 16,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _bottomBarStyle == NixBottomBarStyle.separated
-                        ? 'Separated style active: Bar width dynamically adapts to its child items (icon/text, icon only, text only) at BottomLeft with generous touch targets, while the action button floats at BottomRight.'
-                        : 'Standard style active: Bar width dynamically adapts to its child items (icon/text, icon only, text only) as default, clustered in the center with the action button.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -2476,6 +2588,1228 @@ class _NixVersionHistorySheetState extends State<_NixVersionHistorySheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// DEDICATED COMPONENT SCREENS (NAVIGATED VIA NIXLISTVIEW)
+// -----------------------------------------------------------------------------
+
+/// Dedicated showcase screen for [NixButton], [NixIconButton], and [NixButtonGroup].
+class NixButtonsPage extends StatefulWidget {
+  const NixButtonsPage({super.key});
+
+  @override
+  State<NixButtonsPage> createState() => _NixButtonsPageState();
+}
+
+class _NixButtonsPageState extends State<NixButtonsPage> {
+  bool _isLoading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBody: true,
+      appBar: AppBar(title: const Text('NixButton & NixIconButton')),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          NixCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'NixButton Variants & Morphing',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: [
+                    NixButton.filled(
+                      label: const Text('Filled'),
+                      icon: const Icon(Icons.check_rounded),
+                      onPressed: () {},
+                    ),
+                    NixButton.tonal(
+                      label: const Text('Tonal'),
+                      icon: const Icon(Icons.star_rounded),
+                      onPressed: () {},
+                    ),
+                    NixButton.outlined(
+                      label: const Text('Outlined'),
+                      onPressed: () {},
+                    ),
+                    NixButton.text(label: const Text('Text'), onPressed: () {}),
+                    NixButton.ghost(
+                      label: const Text('Ghost'),
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    NixButton.filled(
+                      label: const Text('Loading Button'),
+                      isLoading: _isLoading,
+                      onPressed: () {},
+                    ),
+                    const SizedBox(width: 10),
+                    NixButton.outlined(
+                      size: NixSize.small,
+                      label: Text(_isLoading ? 'Stop' : 'Simulate Load'),
+                      onPressed: () => setState(() => _isLoading = !_isLoading),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          NixCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'NixIconButton Family',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12.0,
+                  runSpacing: 8.0,
+                  children: [
+                    NixIconButton.filled(
+                      icon: const Icon(Icons.favorite_rounded),
+                      tooltip: 'Favorite',
+                      onPressed: () {},
+                    ),
+                    NixIconButton.tonal(
+                      icon: const Icon(Icons.bookmark_rounded),
+                      tooltip: 'Bookmark',
+                      onPressed: () {},
+                    ),
+                    NixIconButton.outlined(
+                      icon: const Icon(Icons.share_rounded),
+                      tooltip: 'Share',
+                      onPressed: () {},
+                    ),
+                    NixIconButton(
+                      icon: const Icon(Icons.refresh_rounded),
+                      tooltip: 'Standard',
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          NixCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Button Sizes',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10.0,
+                  runSpacing: 8.0,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    NixButton.filled(
+                      size: NixSize.small,
+                      label: const Text('Small'),
+                      onPressed: () {},
+                    ),
+                    NixButton.filled(
+                      size: NixSize.medium,
+                      label: const Text('Medium'),
+                      onPressed: () {},
+                    ),
+                    NixButton.filled(
+                      size: NixSize.large,
+                      label: const Text('Large'),
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dedicated showcase screen for [NixWaveSlider].
+class NixWaveSliderPage extends StatefulWidget {
+  const NixWaveSliderPage({super.key});
+
+  @override
+  State<NixWaveSliderPage> createState() => _NixWaveSliderPageState();
+}
+
+class _NixWaveSliderPageState extends State<NixWaveSliderPage> {
+  double _seconds = 84.0;
+  bool _playing = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      extendBody: true,
+      appBar: AppBar(title: const Text('Squiggly Wave Slider (Music Player)')),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          NixCard(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
+                      child: Icon(
+                        Icons.graphic_eq_rounded,
+                        color: theme.colorScheme.onPrimaryContainer,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Squiggly Wave Slider (Music Player)',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            'Active squiggly wave • Sleek pill thumb • Rounded ends',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    NixIconButton.filled(
+                      size: NixSize.medium,
+                      icon: Icon(
+                        _playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                      ),
+                      tooltip: _playing ? 'Pause' : 'Play',
+                      onPressed: () => setState(() => _playing = !_playing),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                NixWaveSlider.music(
+                  value: _seconds,
+                  max: 225.0,
+                  isPlaying: _playing,
+                  onChanged: (val) => setState(() => _seconds = val),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dedicated showcase screen for [NixSwitch] and [NixSwitchTile].
+class NixSwitchesPage extends StatefulWidget {
+  const NixSwitchesPage({super.key});
+
+  @override
+  State<NixSwitchesPage> createState() => _NixSwitchesPageState();
+}
+
+class _NixSwitchesPageState extends State<NixSwitchesPage> {
+  bool _switchVal = true;
+  bool _wifi = true;
+  bool _bluetooth = true;
+  bool _airplane = false;
+  bool _notifications = true;
+  bool _fastCharge = true;
+  bool _vpn = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      extendBody: true,
+      appBar: AppBar(title: const Text('NixSwitch & NixSwitchTile')),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          NixCard(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Real-time Haptic Switch (Hold & Drag)'),
+                NixSwitch(
+                  value: _switchVal,
+                  onChanged: (val) => setState(() => _switchVal = val),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Segmented Switch Tiles',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          NixSwitchList(
+            padding: EdgeInsets.zero,
+            children: [
+              NixSwitchTile(
+                leading: const Icon(Icons.wifi_rounded),
+                title: const Text('Wi-Fi Network'),
+                subtitle: const Text('Connected to NixDesign-5G'),
+                value: _wifi,
+                onChanged: (val) => setState(() => _wifi = val),
+              ),
+              NixSwitchTile(
+                leading: const Icon(Icons.bluetooth_rounded),
+                title: const Text('Bluetooth'),
+                subtitle: const Text('2 paired devices active'),
+                value: _bluetooth,
+                onChanged: (val) => setState(() => _bluetooth = val),
+              ),
+              NixSwitchTile(
+                leading: const Icon(Icons.airplanemode_active_rounded),
+                title: const Text('Airplane Mode'),
+                subtitle: const Text('Disable all radio signals'),
+                value: _airplane,
+                onChanged: (val) => setState(() => _airplane = val),
+              ),
+              NixSwitchTile(
+                leading: const Icon(Icons.notifications_active_rounded),
+                title: const Text('Push Notifications'),
+                subtitle: const Text('Receive alerts and activity updates'),
+                value: _notifications,
+                onChanged: (val) => setState(() => _notifications = val),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Single Switch Tile (Pilled Corner Radius)',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          NixSwitchTile(
+            leading: const Icon(Icons.bolt_rounded),
+            title: const Text('Fast Charging'),
+            value: _fastCharge,
+            onChanged: (val) => setState(() => _fastCharge = val),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Expandable Switch Tile',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          NixExpandable.switchTile(
+            leading: const Icon(Icons.vpn_lock_rounded),
+            title: const Text('Nix Secure VPN'),
+            subtitle: const Text('Turn on to reveal encrypted tunnel details'),
+            switchValue: _vpn,
+            expandOnSwitch: true,
+            onSwitchChanged: (val) => setState(() => _vpn = val),
+            child: Container(
+              padding: const EdgeInsets.all(12.0),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
+                borderRadius: BorderRadius.circular(12.0),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Connected Server: Frankfurt 04 (Ultra-Low Latency)',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Protocol: WireGuard • Port: 51820 • Cipher: ChaCha20-Poly1305',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dedicated showcase screen for [NixExpandable] and native sheets.
+class NixExpandablePage extends StatefulWidget {
+  const NixExpandablePage({super.key});
+
+  @override
+  State<NixExpandablePage> createState() => _NixExpandablePageState();
+}
+
+class _NixExpandablePageState extends State<NixExpandablePage> {
+  bool _autoUpdate = true;
+  bool _isUpdating = false;
+  double? _progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      extendBody: true,
+      appBar: AppBar(title: const Text('NixExpandable & Native Sheet')),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          NixCard(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.12,
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.history_edu_rounded,
+                        size: 20,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Native Sheet: Releases v1 to v9',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                NixButton.tonal(
+                  onPressed: () {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      useSafeArea: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (ctx) => const _NixVersionHistorySheet(),
+                    );
+                  },
+                  label: const Text('Open Native Sheet (Versions 1 to 9)'),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                  isExpanded: true,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'App Update Expandable (NixExpandable.update)',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          NixExpandable.update(
+            version: '2.5.0',
+            currentVersion: '2.4.2',
+            buildNumber: '148',
+            releaseDate: 'Nov 11, 2026',
+            fileSize: '42.5 MB',
+            badgeText: 'RECOMMENDED',
+            fixes: const [
+              'NixSwitchTile: Segmented switch tiles with pilled corner radius when single',
+              'NixExpandable: Expandable switch tiles with smooth height disclosure',
+              'NixExpandable.update(): App update card with version, fixes & custom widgets',
+              'Dynamic navigation bar child-adaptive width and bottom-right action button',
+            ],
+            autoUpdate: _autoUpdate,
+            onAutoUpdateChanged: (val) => setState(() => _autoUpdate = val),
+            isUpdating: _isUpdating,
+            progress: _progress,
+            onUpdate: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              setState(() {
+                _isUpdating = true;
+                _progress = 0.0;
+              });
+              for (int i = 1; i <= 10; i++) {
+                await Future.delayed(const Duration(milliseconds: 150));
+                if (mounted) setState(() => _progress = i / 10);
+              }
+              if (mounted) {
+                setState(() {
+                  _isUpdating = false;
+                  _progress = null;
+                });
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('App updated to v2.5.0!')),
+                );
+              }
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12.0),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.5,
+                    ),
+                    borderRadius: BorderRadius.circular(12.0),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.verified_user_rounded,
+                        size: 20,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Arbitrary custom widget: Package integrity verified with SHA-256 cryptographic signature.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dedicated showcase screen for [NixBottomBar] playground.
+class NixBottomBarPage extends StatefulWidget {
+  const NixBottomBarPage({super.key});
+
+  @override
+  State<NixBottomBarPage> createState() => _NixBottomBarPageState();
+}
+
+class _NixBottomBarPageState extends State<NixBottomBarPage> {
+  NixBottomBarStyle _style = NixBottomBarStyle.standard;
+  int _itemCount = 4;
+  NixBarActionPosition _position = NixBarActionPosition.right;
+  String _contentType = 'icon_text';
+  bool _enableShrink = true;
+  int _currentIndex = 0;
+  bool _enableFrostedBlur = true;
+  double _blurSigma = 18.0;
+  bool _enableDim = false;
+  double? _customDim;
+  bool _transparentBg = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final items = [
+      NixBottomBarItem(
+        icon: _contentType != 'text_only'
+            ? const Icon(Icons.home_outlined)
+            : null,
+        activeIcon: _contentType != 'text_only'
+            ? const Icon(Icons.home_rounded)
+            : null,
+        label: _contentType != 'icon_only' ? 'Home' : null,
+      ),
+      NixBottomBarItem(
+        icon: _contentType != 'text_only'
+            ? const Icon(Icons.widgets_outlined)
+            : null,
+        activeIcon: _contentType != 'text_only'
+            ? const Icon(Icons.widgets_rounded)
+            : null,
+        label: _contentType != 'icon_only' ? 'Widgets' : null,
+      ),
+      NixBottomBarItem(
+        icon: _contentType != 'text_only'
+            ? const Icon(Icons.view_agenda_outlined)
+            : null,
+        activeIcon: _contentType != 'text_only'
+            ? const Icon(Icons.view_agenda_rounded)
+            : null,
+        label: _contentType != 'icon_only' ? 'Lists' : null,
+      ),
+      NixBottomBarItem(
+        icon: _contentType != 'text_only'
+            ? const Icon(Icons.layers_outlined)
+            : null,
+        activeIcon: _contentType != 'text_only'
+            ? const Icon(Icons.layers_rounded)
+            : null,
+        label: _contentType != 'icon_only' ? 'Feedback' : null,
+      ),
+    ].take(_itemCount).toList();
+
+    return Scaffold(
+      extendBody: true,
+      appBar: AppBar(title: const Text('NixBottomBar Playground')),
+      bottomNavigationBar: NixBottomBar(
+        style: _style,
+        enableShrink: _enableShrink,
+        shrinkOnScroll: _enableShrink,
+        currentIndex: _currentIndex >= items.length ? 0 : _currentIndex,
+        onTap: (idx) => setState(() => _currentIndex = idx),
+        items: items,
+        enableFrostedBlur: _enableFrostedBlur,
+        blur: _blurSigma,
+        backgroundColor: _transparentBg ? Colors.transparent : null,
+        enableDim: _enableDim,
+        dim: _customDim,
+        adaptIndicatorTransparency: true,
+        action: NixBarActionButton(
+          icon: const Icon(Icons.search_rounded),
+          tooltip: 'Search components',
+          onPressed: () {},
+        ),
+        actionPosition: _position,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          NixCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Bar Layout Style:',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                NixSegmentedControl<NixBottomBarStyle>(
+                  value: _style,
+                  onChanged: (val) => setState(() => _style = val),
+                  items: const [
+                    NixSegment(
+                      value: NixBottomBarStyle.standard,
+                      label: 'Standard',
+                    ),
+                    NixSegment(
+                      value: NixBottomBarStyle.separated,
+                      label: 'Separated',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Item Content Type (Dynamic Width):',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: [
+                    NixFilterChip(
+                      label: const Text('Icon & Text'),
+                      selected: _contentType == 'icon_text',
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _contentType = 'icon_text');
+                        }
+                      },
+                    ),
+                    NixFilterChip(
+                      label: const Text('Icon Only'),
+                      selected: _contentType == 'icon_only',
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _contentType = 'icon_only');
+                        }
+                      },
+                    ),
+                    NixFilterChip(
+                      label: const Text('Text Only'),
+                      selected: _contentType == 'text_only',
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _contentType = 'text_only');
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Navigation Items Count (Dynamic Width):',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: [
+                    for (final count in [2, 3, 4])
+                      NixFilterChip(
+                        label: Text('$count Items'),
+                        selected: _itemCount == count,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() {
+                              _itemCount = count;
+                              if (_currentIndex >= count) _currentIndex = 0;
+                            });
+                          }
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Action Button Position:',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: [
+                    NixFilterChip(
+                      label: const Text('Bottom Right'),
+                      selected: _position == NixBarActionPosition.right,
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(
+                            () => _position = NixBarActionPosition.right,
+                          );
+                        }
+                      },
+                    ),
+                    NixFilterChip(
+                      label: const Text('Bottom Left'),
+                      selected: _position == NixBarActionPosition.left,
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _position = NixBarActionPosition.left);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                NixSwitchTile(
+                  title: const Text('Shrink Bar on Scroll'),
+                  subtitle: const Text(
+                    'Smoothly compress scale & margins when scrolling down',
+                  ),
+                  value: _enableShrink,
+                  onChanged: (val) => setState(() => _enableShrink = val),
+                ),
+                const SizedBox(height: 14),
+                const Divider(),
+                const SizedBox(height: 10),
+                Text(
+                  'Frosted Blur & Transparency:',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                NixSwitchTile(
+                  title: const Text('Frosted Glass Blur'),
+                  subtitle: const Text(
+                    'Backdrop filter blur with translucent stadium pill and companion action button',
+                  ),
+                  value: _enableFrostedBlur,
+                  onChanged: (val) => setState(() => _enableFrostedBlur = val),
+                ),
+                if (_enableFrostedBlur) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Blur Sigma Intensity:',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8.0,
+                    runSpacing: 8.0,
+                    children: [
+                      for (final sigma in [10.0, 18.0, 28.0])
+                        NixFilterChip(
+                          label: Text('${sigma.toInt()}px Blur'),
+                          selected: _blurSigma == sigma,
+                          onSelected: (selected) {
+                            if (selected) {
+                              setState(() => _blurSigma = sigma);
+                            }
+                          },
+                        ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 12),
+                NixSwitchTile(
+                  title: const Text('Pure Transparent Background'),
+                  subtitle: const Text(
+                    'Renders fully transparent background; indicator transparency adapts automatically',
+                  ),
+                  value: _transparentBg,
+                  onChanged: (val) => setState(() => _transparentBg = val),
+                ),
+                const SizedBox(height: 14),
+                const Divider(),
+                const SizedBox(height: 10),
+                Text(
+                  'Dim Option (Adaptive or Customizable):',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                NixSwitchTile(
+                  title: const Text('Enable Dim Tint Overlay'),
+                  subtitle: const Text(
+                    'Darkens behind frosted glass to maximize text and icon contrast over colorful content',
+                  ),
+                  value: _enableDim,
+                  onChanged: (val) => setState(() => _enableDim = val),
+                ),
+                if (_enableDim) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8.0,
+                    runSpacing: 8.0,
+                    children: [
+                      NixFilterChip(
+                        label: const Text('Auto Adapt (Brightness)'),
+                        selected: _customDim == null,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() => _customDim = null);
+                          }
+                        },
+                      ),
+                      NixFilterChip(
+                        label: const Text('20% Dim'),
+                        selected: _customDim == 0.20,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() => _customDim = 0.20);
+                          }
+                        },
+                      ),
+                      NixFilterChip(
+                        label: const Text('40% Dim'),
+                        selected: _customDim == 0.40,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() => _customDim = 0.40);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Colorful cards to test frosted blur scrolling underneath
+          for (int i = 1; i <= 6; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: NixCard(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.primaries[i % Colors.primaries.length],
+                            Colors.primaries[(i + 3) % Colors.primaries.length],
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '#$i',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Background Content Card $i',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Scroll down to observe the frosted glass blur and dim tint over this card.',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dedicated showcase screen for [NixListView] and reorder physics.
+class NixListsPage extends StatelessWidget {
+  const NixListsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBody: true,
+      appBar: AppBar(title: const Text('Dynamic Corner Morphs (NixListView)')),
+      body: const _DedicatedListsView(),
+    );
+  }
+}
+
+class _DedicatedListsView extends StatefulWidget {
+  const _DedicatedListsView();
+
+  @override
+  State<_DedicatedListsView> createState() => _DedicatedListsViewState();
+}
+
+class _DedicatedListsViewState extends State<_DedicatedListsView> {
+  final List<Map<String, String>> _tracks = [
+    {'title': 'Midnight City Waves', 'artist': 'Nix Synth', 'duration': '3:45'},
+    {'title': 'Neon Horizon', 'artist': 'Cyber Capsule', 'duration': '4:12'},
+    {
+      'title': 'Starlight Drift',
+      'artist': 'Pill Resonance',
+      'duration': '2:58',
+    },
+    {'title': 'Quantum Pulse', 'artist': 'Electron Flow', 'duration': '3:20'},
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16.0),
+      children: [
+        NixListView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          reorderable: true,
+          canReorderOnLongPress: true,
+          onReorder: (oldIndex, newIndex) {
+            setState(() {
+              final item = _tracks.removeAt(oldIndex);
+              _tracks.insert(newIndex, item);
+            });
+            NixSnackBar.show(context, message: 'Moved track to #$newIndex');
+          },
+          children: List.generate(_tracks.length, (index) {
+            final track = _tracks[index];
+            return NixListItem(
+              key: ValueKey(track['title']!),
+              leading: const Icon(Icons.music_note_rounded),
+              title: Text(track['title']!),
+              subtitle: Text('${track['artist']} • ${track['duration']}'),
+              reorderHandle: const NixReorderHandle(),
+              swipeMode: NixSwipeMode.actions,
+              primaryActions: [
+                NixSwipeAction.share(
+                  onTriggered: () {
+                    NixSnackBar.show(
+                      context,
+                      message: 'Shared "${track['title']}"',
+                    );
+                  },
+                ),
+                NixSwipeAction.archive(
+                  onTriggered: () {
+                    NixSnackBar.show(
+                      context,
+                      message: 'Archived "${track['title']}"',
+                    );
+                  },
+                ),
+              ],
+            );
+          }),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dedicated showcase screen for Feedback & Snackbars.
+class NixFeedbackPage extends StatelessWidget {
+  const NixFeedbackPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBody: true,
+      appBar: AppBar(title: const Text('Feedback & SnackBars')),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          NixCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Floating Pill Snackbars',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: [
+                    NixButton.filled(
+                      label: const Text('Top Pill Snackbar'),
+                      icon: const Icon(Icons.arrow_downward_rounded),
+                      onPressed: () {
+                        NixSnackBar.show(
+                          context,
+                          position: NixSnackBarPosition.top,
+                          icon: const Icon(Icons.notifications_active_rounded),
+                          message: 'Top floating pill (slide down entrance)',
+                          actionLabel: 'Dismiss',
+                          onAction: () {},
+                        );
+                      },
+                    ),
+                    NixButton.tonal(
+                      label: const Text('Bottom Pill Snackbar'),
+                      icon: const Icon(Icons.arrow_upward_rounded),
+                      onPressed: () {
+                        NixSnackBar.show(
+                          context,
+                          position: NixSnackBarPosition.bottom,
+                          icon: const Icon(Icons.check_circle_rounded),
+                          message: 'Bottom floating pill (slide up entrance)',
+                          actionLabel: 'OK',
+                          onAction: () {},
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          NixCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'NixDialog Variants',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: [
+                    NixButton.filled(
+                      label: const Text('Confirmation Dialog'),
+                      onPressed: () {
+                        showNixDialog<void>(
+                          context: context,
+                          builder: (ctx) => NixDialog(
+                            icon: const Icon(Icons.help_outline_rounded),
+                            title: const Text('Confirm Action'),
+                            content: const Text(
+                              'Are you sure you want to proceed with this operation?',
+                            ),
+                            actions: [
+                              NixButton.text(
+                                label: const Text('Cancel'),
+                                onPressed: () => Navigator.of(ctx).pop(),
+                              ),
+                              NixButton.filled(
+                                label: const Text('Confirm'),
+                                onPressed: () => Navigator.of(ctx).pop(),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dedicated showcase screen for [NixPopupMenu].
+class NixPopupPage extends StatefulWidget {
+  const NixPopupPage({super.key});
+
+  @override
+  State<NixPopupPage> createState() => _NixPopupPageState();
+}
+
+class _NixPopupPageState extends State<NixPopupPage> {
+  String? _selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBody: true,
+      appBar: AppBar(
+        title: const Text('Custom Popup Menu (Dual Gesture & Dynamic Corners)'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          NixCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Custom Popup Menu (Dual Gesture & Dynamic Corners)',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12.0,
+                  runSpacing: 12.0,
+                  children: [
+                    NixPopupMenu<String>(
+                      onSelected: (val) => setState(() => _selected = val),
+                      items: const [
+                        NixPopupMenuItem(
+                          value: 'edit',
+                          label: Text('Edit Document'),
+                          icon: Icon(Icons.edit_outlined),
+                        ),
+                        NixPopupMenuItem(
+                          value: 'share',
+                          label: Text('Share Link'),
+                          icon: Icon(Icons.share_outlined),
+                          trailing: Text('⌘S'),
+                        ),
+                        NixPopupMenuItem(
+                          value: 'duplicate',
+                          label: Text('Duplicate'),
+                          icon: Icon(Icons.copy_rounded),
+                        ),
+                        NixPopupMenuItem.destructive(
+                          value: 'delete',
+                          label: Text('Delete Item'),
+                          icon: Icon(Icons.delete_outline_rounded),
+                        ),
+                      ],
+                      child: const NixButton.filled(
+                        label: Text('Hold, Drag & Release Menu'),
+                        icon: Icon(Icons.menu_rounded),
+                        onPressed: null,
+                      ),
+                    ),
+                  ],
+                ),
+                if (_selected != null) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    'Selected: $_selected',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

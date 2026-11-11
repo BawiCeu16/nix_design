@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nix_design/nix_design.dart';
 
@@ -158,13 +159,91 @@ void main() {
         expect(find.text('Track 2'), findsOneWidget);
         expect(find.text('Track 3'), findsOneWidget);
 
-        // Verify container decoration has 16px radius
+        // Verify container decoration has containerRadius
         final containerFinder = find.byType(Container).first;
         final container = tester.widget<Container>(containerFinder);
         final decoration = container.decoration as BoxDecoration;
-        expect(decoration.borderRadius, BorderRadius.circular(16.0));
+        expect(
+          decoration.borderRadius,
+          BorderRadius.circular(NixListPhysics.containerRadius),
+        );
+
+        // By default, inner clipping is enabled with a ClipRRect
+        expect(find.byType(ClipRRect), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'Inner clipping radius can be disabled via enableInnerClipping: false',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(useMaterial3: true),
+            home: Scaffold(
+              body: NixListView(
+                enableInnerClipping: false,
+                children: const [
+                  NixListItem(title: Text('No Clip 1')),
+                  NixListItem(title: Text('No Clip 2')),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('No Clip 1'), findsOneWidget);
+        // ClipRRect should not be present when enableInnerClipping is false
+        expect(find.byType(ClipRRect), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'Inner clipping radius can be disabled via clipBehavior: Clip.none',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(useMaterial3: true),
+            home: Scaffold(
+              body: NixListView(
+                clipBehavior: Clip.none,
+                children: const [
+                  NixListItem(title: Text('No Clip None 1')),
+                  NixListItem(title: Text('No Clip None 2')),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('No Clip None 1'), findsOneWidget);
+        expect(find.byType(ClipRRect), findsNothing);
+      },
+    );
+
+    testWidgets('Custom innerClipBorderRadius is respected when provided', (
+      tester,
+    ) async {
+      const customRadius = BorderRadius.all(Radius.circular(8.0));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: true),
+          home: Scaffold(
+            body: NixListView(
+              innerClipBorderRadius: customRadius,
+              children: const [NixListItem(title: Text('Custom Radius Item'))],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final clipFinder = find.byType(ClipRRect);
+      expect(clipFinder, findsOneWidget);
+      final clipRRect = tester.widget<ClipRRect>(clipFinder);
+      expect(clipRRect.borderRadius, equals(customRadius));
+    });
 
     testWidgets('Lazily builds with NixListView.builder', (tester) async {
       await tester.pumpWidget(
@@ -261,7 +340,12 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
 
         final song2Container = tester.widget<AnimatedContainer>(
-          find.ancestor(of: find.text('Song 2'), matching: find.byType(AnimatedContainer)).first,
+          find
+              .ancestor(
+                of: find.text('Song 2'),
+                matching: find.byType(AnimatedContainer),
+              )
+              .first,
         );
         final deco = song2Container.decoration as BoxDecoration;
         expect(deco.color, isNotNull);
@@ -541,65 +625,68 @@ void main() {
       expect(reorderedTo, equals(1));
     });
 
-    testWidgets('Reorder from index 0 to index 2 moves cleanly and invokes onReorder(0, 2)', (
-      tester,
-    ) async {
-      int? reorderedFrom;
-      int? reorderedTo;
-      final items = ['Row 0', 'Row 1', 'Row 2'];
+    testWidgets(
+      'Reorder from index 0 to index 2 moves cleanly and invokes onReorder(0, 2)',
+      (tester) async {
+        int? reorderedFrom;
+        int? reorderedTo;
+        final items = ['Row 0', 'Row 1', 'Row 2'];
 
-      await tester.pumpWidget(
-        StatefulBuilder(
-          builder: (context, setState) {
-            return MaterialApp(
-              theme: ThemeData(useMaterial3: true),
-              home: Scaffold(
-                body: SizedBox(
-                  width: 400,
-                  height: 400,
-                  child: NixListView(
-                    reorderable: true,
-                    onReorder: (oldIdx, newIdx) {
-                      reorderedFrom = oldIdx;
-                      reorderedTo = newIdx;
-                      setState(() {
-                        final item = items.removeAt(oldIdx);
-                        items.insert(newIdx, item);
-                      });
-                    },
-                    children: items
-                        .map(
-                          (name) => NixListItem(
-                            key: ValueKey(name),
-                            title: Text(name),
-                            reorderHandle: const NixReorderHandle(),
-                          ),
-                        )
-                        .toList(),
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) {
+              return MaterialApp(
+                theme: ThemeData(useMaterial3: true),
+                home: Scaffold(
+                  body: SizedBox(
+                    width: 400,
+                    height: 400,
+                    child: NixListView(
+                      reorderable: true,
+                      onReorder: (oldIdx, newIdx) {
+                        reorderedFrom = oldIdx;
+                        reorderedTo = newIdx;
+                        setState(() {
+                          final item = items.removeAt(oldIdx);
+                          items.insert(newIdx, item);
+                        });
+                      },
+                      children: items
+                          .map(
+                            (name) => NixListItem(
+                              key: ValueKey(name),
+                              title: Text(name),
+                              reorderHandle: const NixReorderHandle(),
+                            ),
+                          )
+                          .toList(),
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
-        ),
-      );
-      await tester.pumpAndSettle();
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      final firstHandle = find.byType(NixReorderHandle).first;
-      expect(firstHandle, findsOneWidget);
+        final firstHandle = find.byType(NixReorderHandle).first;
+        expect(firstHandle, findsOneWidget);
 
-      // Drag first item all the way down past slot 2
-      final gesture = await tester.startGesture(tester.getCenter(firstHandle));
-      await tester.pump();
-      await gesture.moveBy(const Offset(0.0, 140.0));
-      await tester.pump();
-      await gesture.up();
-      await tester.pumpAndSettle();
+        // Drag first item all the way down past slot 2
+        final gesture = await tester.startGesture(
+          tester.getCenter(firstHandle),
+        );
+        await tester.pump();
+        await gesture.moveBy(const Offset(0.0, 140.0));
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
 
-      expect(reorderedFrom, equals(0));
-      expect(reorderedTo, equals(2));
-      expect(items, equals(['Row 1', 'Row 2', 'Row 0']));
-    });
+        expect(reorderedFrom, equals(0));
+        expect(reorderedTo, equals(2));
+        expect(items, equals(['Row 1', 'Row 2', 'Row 0']));
+      },
+    );
 
     testWidgets(
       'Drop target slot renders with drop target color and place radius during reorder drag',
@@ -637,7 +724,9 @@ void main() {
         await tester.pumpAndSettle();
 
         final firstHandle = find.byType(NixReorderHandle).first;
-        final gesture = await tester.startGesture(tester.getCenter(firstHandle));
+        final gesture = await tester.startGesture(
+          tester.getCenter(firstHandle),
+        );
         await tester.pump();
         await gesture.moveBy(const Offset(0.0, 60.0));
         await tester.pump();
@@ -655,7 +744,11 @@ void main() {
         final container = tester.widget<Container>(dropTargetFinder);
         final deco = container.decoration as BoxDecoration;
         expect(deco.borderRadius, isA<BorderRadius>());
-        expect(deco.border, isNull, reason: "Reorder's drop target has no border as default");
+        expect(
+          deco.border,
+          isNull,
+          reason: "Reorder's drop target has no border as default",
+        );
 
         await gesture.up();
         await tester.pumpAndSettle();
@@ -985,10 +1078,7 @@ void main() {
       expect(find.text('Right Only Item'), findsOneWidget);
 
       // Right swipe should work
-      await tester.drag(
-        find.text('Right Only Item'),
-        const Offset(220.0, 0.0),
-      );
+      await tester.drag(find.text('Right Only Item'), const Offset(220.0, 0.0));
       await tester.pumpAndSettle();
       expect(archiveFired, isTrue);
       expect(find.text('Right Only Item'), findsNothing);
@@ -1024,19 +1114,13 @@ void main() {
       await tester.pumpAndSettle();
 
       // Right swipe should be rejected
-      await tester.drag(
-        find.text('Left Only Item'),
-        const Offset(200.0, 0.0),
-      );
+      await tester.drag(find.text('Left Only Item'), const Offset(200.0, 0.0));
       await tester.pumpAndSettle();
       expect(archiveFired, isFalse);
       expect(find.text('Left Only Item'), findsOneWidget);
 
       // Left swipe should work
-      await tester.drag(
-        find.text('Left Only Item'),
-        const Offset(-220.0, 0.0),
-      );
+      await tester.drag(find.text('Left Only Item'), const Offset(-220.0, 0.0));
       await tester.pumpAndSettle();
       expect(deleteFired, isTrue);
       expect(find.text('Left Only Item'), findsNothing);
@@ -1072,22 +1156,34 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
 
         // Check decoration color of Selected item
-        final selectedFinder = find.ancestor(
-          of: find.text('Selected Track'),
-          matching: find.byType(AnimatedContainer),
-        ).first;
-        final selectedContainer = tester.widget<AnimatedContainer>(selectedFinder);
-        final selectedDecoration = selectedContainer.decoration as BoxDecoration;
+        final selectedFinder = find
+            .ancestor(
+              of: find.text('Selected Track'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first;
+        final selectedContainer = tester.widget<AnimatedContainer>(
+          selectedFinder,
+        );
+        final selectedDecoration =
+            selectedContainer.decoration as BoxDecoration;
         expect(selectedDecoration.color, isNotNull);
         expect(selectedDecoration.color!.a, equals(1.0)); // 100% opaque
-        expect(selectedDecoration.border, isNull); // Default select has no border
+        expect(
+          selectedDecoration.border,
+          isNull,
+        ); // Default select has no border
 
         // Check decoration color of Playing item
-        final playingFinder = find.ancestor(
-          of: find.text('Playing Track'),
-          matching: find.byType(AnimatedContainer),
-        ).first;
-        final playingContainer = tester.widget<AnimatedContainer>(playingFinder);
+        final playingFinder = find
+            .ancestor(
+              of: find.text('Playing Track'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first;
+        final playingContainer = tester.widget<AnimatedContainer>(
+          playingFinder,
+        );
         final playingDecoration = playingContainer.decoration as BoxDecoration;
         expect(playingDecoration.color, isNotNull);
         expect(playingDecoration.color!.a, equals(1.0)); // 100% opaque
@@ -1130,19 +1226,23 @@ void main() {
         await tester.pump();
 
         // Find the revealed action container with Material 3 Expressive fully rounded pill
-        final roundedRectContainers = tester.widgetList<Container>(
-          find.descendant(
-            of: find.byType(NixListItem),
-            matching: find.byType(Container),
-          ),
-        ).where((c) {
-          final dec = c.decoration;
-          if (dec is BoxDecoration && dec.borderRadius is BorderRadius) {
-            final br = dec.borderRadius as BorderRadius;
-            return br.topLeft.x >= 20.0 && dec.color == const Color(0xFF2E7D32);
-          }
-          return false;
-        }).toList();
+        final roundedRectContainers = tester
+            .widgetList<Container>(
+              find.descendant(
+                of: find.byType(NixListItem),
+                matching: find.byType(Container),
+              ),
+            )
+            .where((c) {
+              final dec = c.decoration;
+              if (dec is BoxDecoration && dec.borderRadius is BorderRadius) {
+                final br = dec.borderRadius as BorderRadius;
+                return br.topLeft.x >= 20.0 &&
+                    dec.color == const Color(0xFF2E7D32);
+              }
+              return false;
+            })
+            .toList();
 
         expect(roundedRectContainers, isNotEmpty);
         final archiveRect = roundedRectContainers.first;
@@ -1151,15 +1251,18 @@ void main() {
         expect(archiveBr.topLeft.x, greaterThanOrEqualTo(20.0));
 
         // Find circular badge inside (BoxShape.circle) and archive icon
-        final circleBadges = tester.widgetList<Container>(
-          find.descendant(
-            of: find.byType(NixListItem),
-            matching: find.byType(Container),
-          ),
-        ).where((c) {
-          final dec = c.decoration;
-          return dec is BoxDecoration && dec.shape == BoxShape.circle;
-        }).toList();
+        final circleBadges = tester
+            .widgetList<Container>(
+              find.descendant(
+                of: find.byType(NixListItem),
+                matching: find.byType(Container),
+              ),
+            )
+            .where((c) {
+              final dec = c.decoration;
+              return dec is BoxDecoration && dec.shape == BoxShape.circle;
+            })
+            .toList();
         expect(circleBadges, isNotEmpty);
         expect(find.byIcon(Icons.archive_rounded), findsOneWidget);
 
@@ -1176,19 +1279,22 @@ void main() {
         await gestureLeft.moveBy(const Offset(-65.0, 0.0));
         await tester.pump();
 
-        final roundedRectContainersLeft = tester.widgetList<Container>(
-          find.descendant(
-            of: find.byType(NixListItem),
-            matching: find.byType(Container),
-          ),
-        ).where((c) {
-          final dec = c.decoration;
-          if (dec is BoxDecoration && dec.borderRadius is BorderRadius) {
-            final br = dec.borderRadius as BorderRadius;
-            return br.topLeft.x >= 20.0;
-          }
-          return false;
-        }).toList();
+        final roundedRectContainersLeft = tester
+            .widgetList<Container>(
+              find.descendant(
+                of: find.byType(NixListItem),
+                matching: find.byType(Container),
+              ),
+            )
+            .where((c) {
+              final dec = c.decoration;
+              if (dec is BoxDecoration && dec.borderRadius is BorderRadius) {
+                final br = dec.borderRadius as BorderRadius;
+                return br.topLeft.x >= 20.0;
+              }
+              return false;
+            })
+            .toList();
 
         expect(roundedRectContainersLeft, isNotEmpty);
         expect(find.byIcon(Icons.delete_outline_rounded), findsOneWidget);
@@ -1276,7 +1382,9 @@ void main() {
         expect(find.byIcon(Icons.swap_vert_rounded), findsNWidgets(2));
 
         // Long press on whole item should NOT reorder
-        final gesture = await tester.startGesture(tester.getCenter(find.text('Alpha')));
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('Alpha')),
+        );
         await tester.pump(const Duration(milliseconds: 350));
         await gesture.moveBy(const Offset(0.0, 80.0));
         await tester.pump();
@@ -1286,7 +1394,9 @@ void main() {
 
         // Drag on custom handle SHOULD reorder
         final customHandle = find.byIcon(Icons.swap_vert_rounded).first;
-        final handleGesture = await tester.startGesture(tester.getCenter(customHandle));
+        final handleGesture = await tester.startGesture(
+          tester.getCenter(customHandle),
+        );
         await handleGesture.moveBy(const Offset(0.0, 80.0));
         await tester.pump();
         await handleGesture.up();
@@ -1315,12 +1425,8 @@ void main() {
                     toIndex = to;
                   },
                   children: const [
-                    NixListItem(
-                      title: Text('Item 0'),
-                    ),
-                    NixListItem(
-                      title: Text('Item 1'),
-                    ),
+                    NixListItem(title: Text('Item 0')),
+                    NixListItem(title: Text('Item 1')),
                   ],
                 ),
               ),
@@ -1333,7 +1439,9 @@ void main() {
         expect(find.byType(NixReorderHandle), findsNothing);
 
         // Long press on whole item 0 and drag down past Item 1
-        final gesture = await tester.startGesture(tester.getCenter(find.text('Item 0')));
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('Item 0')),
+        );
         await tester.pump(const Duration(milliseconds: 600));
         await gesture.moveBy(const Offset(0.0, 70.0));
         await tester.pump();
@@ -1419,7 +1527,7 @@ void main() {
     );
 
     testWidgets(
-      'default select and play have no border unless explicitly specified, and have elevated shadow',
+      'default select and play have no border and flat elevation (no shadow) exactly like multi-select',
       (tester) async {
         await tester.pumpWidget(
           MaterialApp(
@@ -1432,12 +1540,8 @@ void main() {
                   selectedIndices: const {0},
                   playingIndex: 1,
                   children: const [
-                    NixListItem(
-                      title: Text('Selected Item'),
-                    ),
-                    NixListItem(
-                      title: Text('Playing Item'),
-                    ),
+                    NixListItem(title: Text('Selected Item')),
+                    NixListItem(title: Text('Playing Item')),
                   ],
                 ),
               ),
@@ -1446,28 +1550,48 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 100));
 
-        // Inspect AnimatedContainers of both items
-        final containers = tester.widgetList<AnimatedContainer>(
-          find.byType(AnimatedContainer),
-        );
+        // Inspect card surface AnimatedContainers of both items
+        final selectedFinder = find
+            .ancestor(
+              of: find.text('Selected Item'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first;
+        final playingFinder = find
+            .ancestor(
+              of: find.text('Playing Item'),
+              matching: find.byType(AnimatedContainer),
+            )
+            .first;
 
-        // Find decorations of card surfaces
-        final cardDecorations = containers
-            .map((c) => c.decoration)
-            .whereType<BoxDecoration>()
-            .toList();
+        final selectedDecor =
+            tester.widget<AnimatedContainer>(selectedFinder).decoration
+                as BoxDecoration;
+        final playingDecor =
+            tester.widget<AnimatedContainer>(playingFinder).decoration
+                as BoxDecoration;
 
-        // There should be card decorations without border by default
-        final selectedDecor = cardDecorations.firstWhere(
-          (d) => d.boxShadow == null,
+        // Both selected and playing item surfaces have no border and are flat (no shadow) by default
+        expect(
+          selectedDecor.border,
+          isNull,
+          reason: 'Default select must have no border',
         );
-        expect(selectedDecor.border, isNull, reason: 'Default select must have no border');
-
-        final playingDecor = cardDecorations.firstWhere(
-          (d) => d.boxShadow != null && d.boxShadow!.isNotEmpty,
+        expect(
+          selectedDecor.boxShadow,
+          isNull,
+          reason: 'Default select must be flat without shadow',
         );
-        expect(playingDecor.border, isNull, reason: 'Default play must have no border');
-        expect(playingDecor.boxShadow, isNotNull, reason: 'Playing item must have active shadow');
+        expect(
+          playingDecor.border,
+          isNull,
+          reason: 'Default play must have no border',
+        );
+        expect(
+          playingDecor.boxShadow,
+          isNull,
+          reason: 'Default play must be flat without shadow',
+        );
       },
     );
 
@@ -1552,7 +1676,10 @@ void main() {
         await tester.pumpAndSettle();
 
         // 1. Swipe Right: should fire onSwipeRight
-        await tester.drag(find.text('Dynamic Swipe Item'), const Offset(300.0, 0.0));
+        await tester.drag(
+          find.text('Dynamic Swipe Item'),
+          const Offset(300.0, 0.0),
+        );
         await tester.pumpAndSettle();
         expect(swipedRight, isTrue);
         expect(swipedLeft, isFalse);
@@ -1579,7 +1706,10 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester.drag(find.text('Dynamic Swipe Item 2'), const Offset(-300.0, 0.0));
+        await tester.drag(
+          find.text('Dynamic Swipe Item 2'),
+          const Offset(-300.0, 0.0),
+        );
         await tester.pumpAndSettle();
         expect(swipedLeftOnly, isTrue);
       },
@@ -1615,7 +1745,9 @@ void main() {
         expect(find.byType(NixReorderHandle), findsNothing);
 
         // Long press attempt on whole item should not trigger reorder
-        final gesture = await tester.startGesture(tester.getCenter(find.text('Alpha')));
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('Alpha')),
+        );
         await tester.pump(const Duration(milliseconds: 600));
         await gesture.moveBy(const Offset(0.0, 70.0));
         await tester.pump();
@@ -1646,10 +1778,7 @@ void main() {
                     toIndex = to;
                   },
                   children: const [
-                    NixListItem(
-                      title: Text('Locked Item'),
-                      canReorder: false,
-                    ),
+                    NixListItem(title: Text('Locked Item'), canReorder: false),
                     NixListItem(
                       title: Text('Reorderable Item'),
                       canReorder: true,
@@ -1666,7 +1795,9 @@ void main() {
         expect(find.byType(NixReorderHandle), findsOneWidget);
 
         // Attempting to long press and drag Locked Item should fail
-        final gestureLocked = await tester.startGesture(tester.getCenter(find.text('Locked Item')));
+        final gestureLocked = await tester.startGesture(
+          tester.getCenter(find.text('Locked Item')),
+        );
         await tester.pump(const Duration(milliseconds: 600));
         await gestureLocked.moveBy(const Offset(0.0, 70.0));
         await tester.pump();
@@ -1678,7 +1809,9 @@ void main() {
 
         // Dragging Reorderable Item handle SHOULD work
         final handle = find.byType(NixReorderHandle).first;
-        final gestureHandle = await tester.startGesture(tester.getCenter(handle));
+        final gestureHandle = await tester.startGesture(
+          tester.getCenter(handle),
+        );
         await gestureHandle.moveBy(const Offset(0.0, -70.0));
         await tester.pump();
         await gestureHandle.up();
@@ -1714,14 +1847,18 @@ void main() {
         await tester.pumpAndSettle();
 
         // Start horizontal swipe: break touch slop first, then move
-        final swipeGesture = await tester.startGesture(tester.getCenter(find.text('Swipe Track')));
+        final swipeGesture = await tester.startGesture(
+          tester.getCenter(find.text('Swipe Track')),
+        );
         await swipeGesture.moveBy(const Offset(25.0, 0.0));
         await tester.pump();
         await swipeGesture.moveBy(const Offset(60.0, 0.0));
         await tester.pump();
 
         // Check reduced swipe shadow (alpha: 0.06, blurRadius: 6.0)
-        final container = tester.widgetList<AnimatedContainer>(find.byType(AnimatedContainer)).first;
+        final container = tester
+            .widgetList<AnimatedContainer>(find.byType(AnimatedContainer))
+            .first;
         final decor = container.decoration as BoxDecoration;
         expect(decor.boxShadow, isNotNull);
         final shadow = decor.boxShadow!.first;
@@ -1756,7 +1893,9 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final swipeGesture = await tester.startGesture(tester.getCenter(find.text('Non Overlapping Item')));
+        final swipeGesture = await tester.startGesture(
+          tester.getCenter(find.text('Non Overlapping Item')),
+        );
         await swipeGesture.moveBy(const Offset(25.0, 0.0));
         await tester.pump();
         await swipeGesture.moveBy(const Offset(55.0, 0.0));
@@ -1766,7 +1905,8 @@ void main() {
         final bgContainerFinder = find.byWidgetPredicate((w) {
           if (w is Container && w.decoration is BoxDecoration) {
             final decor = w.decoration as BoxDecoration;
-            return decor.color == const Color(0xFF2E7D32) && decor.borderRadius is BorderRadius;
+            return decor.color == const Color(0xFF2E7D32) &&
+                decor.borderRadius is BorderRadius;
           }
           return false;
         });
@@ -1774,50 +1914,61 @@ void main() {
 
         final bgContainer = tester.widget<Container>(bgContainerFinder);
         // The background container width should equal exactly the swipe offset (55.0), NOT overlapping under the card
-        expect(bgContainer.constraints?.maxWidth ?? (tester.getSize(bgContainerFinder).width), equals(55.0));
+        expect(
+          bgContainer.constraints?.maxWidth ??
+              (tester.getSize(bgContainerFinder).width),
+          equals(55.0),
+        );
 
         await swipeGesture.up();
         await tester.pumpAndSettle();
       },
     );
 
-    testWidgets(
-      'Swipe icon does not animate scale or popup when threshold is triggered',
-      (tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: SizedBox(
-                width: 400,
-                height: 300,
-                child: NixListView(
-                  children: [
-                    NixListItem.gmailStyle(
-                      title: const Text('No Scale Anim'),
-                      onSwipeRight: () {},
-                    ),
-                  ],
-                ),
+    testWidgets('Gmail style swipe icon animates scale and threshold popup', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 300,
+              child: NixListView(
+                children: [
+                  NixListItem.gmailStyle(
+                    title: const Text('Scale Anim'),
+                    onSwipeRight: () {},
+                  ),
+                ],
               ),
             ),
           ),
-        );
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        // Drag past threshold (threshold = 0.4 * 400 = 160)
-        final swipeGesture = await tester.startGesture(tester.getCenter(find.text('No Scale Anim')));
-        await swipeGesture.moveBy(const Offset(25.0, 0.0));
-        await tester.pump();
-        await swipeGesture.moveBy(const Offset(180.0, 0.0));
-        await tester.pump();
+      // Drag past threshold (threshold = 0.4 * 400 = 160)
+      final swipeGesture = await tester.startGesture(
+        tester.getCenter(find.text('Scale Anim')),
+      );
+      await swipeGesture.moveBy(const Offset(25.0, 0.0));
+      await tester.pump();
+      await swipeGesture.moveBy(const Offset(180.0, 0.0));
+      await tester.pump();
 
-        // Verify there is NO AnimatedScale in the swipe background
-        expect(find.descendant(of: find.byType(NixListItem), matching: find.byType(AnimatedScale)), findsNothing);
+      // Verify AnimatedScale is present in the swipe background
+      expect(
+        find.descendant(
+          of: find.byType(NixListItem),
+          matching: find.byType(AnimatedScale),
+        ),
+        findsOneWidget,
+      );
 
-        await swipeGesture.up();
-        await tester.pumpAndSettle();
-      },
-    );
+      await swipeGesture.up();
+      await tester.pumpAndSettle();
+    });
 
     testWidgets(
       'Reorder drag provides smooth 140ms animation for slot shifting and drop target',
@@ -1842,7 +1993,9 @@ void main() {
         await tester.pumpAndSettle();
 
         // Check that AnimatedSlide widgets have smooth 140ms animation with easeOutCubic curve
-        final slides = tester.widgetList<AnimatedSlide>(find.byType(AnimatedSlide));
+        final slides = tester.widgetList<AnimatedSlide>(
+          find.byType(AnimatedSlide),
+        );
         for (final slide in slides) {
           expect(slide.duration, equals(const Duration(milliseconds: 140)));
           expect(slide.curve, equals(Curves.easeOutCubic));
@@ -1875,9 +2028,18 @@ void main() {
 
         // Find the 3 card surface AnimatedContainers
         final itemFinders = [
-          find.ancestor(of: find.text('Track 0'), matching: find.byType(AnimatedContainer)),
-          find.ancestor(of: find.text('Track 1 (Playing)'), matching: find.byType(AnimatedContainer)),
-          find.ancestor(of: find.text('Track 2'), matching: find.byType(AnimatedContainer)),
+          find.ancestor(
+            of: find.text('Track 0'),
+            matching: find.byType(AnimatedContainer),
+          ),
+          find.ancestor(
+            of: find.text('Track 1 (Playing)'),
+            matching: find.byType(AnimatedContainer),
+          ),
+          find.ancestor(
+            of: find.text('Track 2'),
+            matching: find.byType(AnimatedContainer),
+          ),
         ];
 
         // Track 0 (unselected, before playing item):
@@ -1940,17 +2102,29 @@ void main() {
         await tester.pump(const Duration(milliseconds: 200));
 
         final card0 = tester.widget<AnimatedContainer>(
-          find.ancestor(of: find.text('Item 0'), matching: find.byType(AnimatedContainer)).first,
+          find
+              .ancestor(
+                of: find.text('Item 0'),
+                matching: find.byType(AnimatedContainer),
+              )
+              .first,
         );
-        final br0 = (card0.decoration as BoxDecoration).borderRadius as BorderRadius;
+        final br0 =
+            (card0.decoration as BoxDecoration).borderRadius as BorderRadius;
         // Item 0: top is 12.0, bottom seals to 12.0
         expect(br0.topLeft.x, equals(12.0));
         expect(br0.bottomLeft.x, equals(12.0));
 
         final card1 = tester.widget<AnimatedContainer>(
-          find.ancestor(of: find.text('Item 1 (Selected)'), matching: find.byType(AnimatedContainer)).first,
+          find
+              .ancestor(
+                of: find.text('Item 1 (Selected)'),
+                matching: find.byType(AnimatedContainer),
+              )
+              .first,
         );
-        final br1 = (card1.decoration as BoxDecoration).borderRadius as BorderRadius;
+        final br1 =
+            (card1.decoration as BoxDecoration).borderRadius as BorderRadius;
         // Item 1 (top of selected group):
         // Top corners: 12.0 (boundary against unselected Item 0)
         // Bottom corners: 6.0 (shared inner corner with selected Item 2)
@@ -1960,9 +2134,15 @@ void main() {
         expect(br1.bottomRight.x, equals(6.0));
 
         final card2 = tester.widget<AnimatedContainer>(
-          find.ancestor(of: find.text('Item 2 (Selected)'), matching: find.byType(AnimatedContainer)).first,
+          find
+              .ancestor(
+                of: find.text('Item 2 (Selected)'),
+                matching: find.byType(AnimatedContainer),
+              )
+              .first,
         );
-        final br2 = (card2.decoration as BoxDecoration).borderRadius as BorderRadius;
+        final br2 =
+            (card2.decoration as BoxDecoration).borderRadius as BorderRadius;
         // Item 2 (bottom of selected group):
         // Top corners: 6.0 (shared inner corner with selected Item 1)
         // Bottom corners: 12.0 (boundary against unselected Item 3)
@@ -1972,9 +2152,15 @@ void main() {
         expect(br2.bottomRight.x, equals(12.0));
 
         final card3 = tester.widget<AnimatedContainer>(
-          find.ancestor(of: find.text('Item 3'), matching: find.byType(AnimatedContainer)).first,
+          find
+              .ancestor(
+                of: find.text('Item 3'),
+                matching: find.byType(AnimatedContainer),
+              )
+              .first,
         );
-        final br3 = (card3.decoration as BoxDecoration).borderRadius as BorderRadius;
+        final br3 =
+            (card3.decoration as BoxDecoration).borderRadius as BorderRadius;
         // Item 3: top seals to 12.0, bottom is 12.0 (last item)
         expect(br3.topLeft.x, equals(12.0));
         expect(br3.bottomLeft.x, equals(12.0));
@@ -2007,12 +2193,8 @@ void main() {
                       onTap: () => tapped = true,
                       onSelectionChanged: (val) => selected = val,
                       primaryActions: [
-                        NixSwipeAction.share(
-                          onTriggered: () {},
-                        ),
-                        NixSwipeAction.archive(
-                          onTriggered: () {},
-                        ),
+                        NixSwipeAction.share(onTriggered: () {}),
+                        NixSwipeAction.archive(onTriggered: () {}),
                       ],
                     ),
                     const NixListItem(
@@ -2029,13 +2211,21 @@ void main() {
 
         // 1. Initial State: Track 0 is playing (has playing color highlight), handle is enabled
         final initialContainer = tester.widget<AnimatedContainer>(
-          find.ancestor(of: find.text('Action Track 0'), matching: find.byType(AnimatedContainer)).first,
+          find
+              .ancestor(
+                of: find.text('Action Track 0'),
+                matching: find.byType(AnimatedContainer),
+              )
+              .first,
         );
         final initialDeco = initialContainer.decoration as BoxDecoration;
         expect(initialDeco.color, isNotNull);
 
         // 2. Swipe right to trigger Action Buttons
-        await tester.drag(find.text('Action Track 0'), const Offset(160.0, 0.0));
+        await tester.drag(
+          find.text('Action Track 0'),
+          const Offset(160.0, 0.0),
+        );
         await tester.pumpAndSettle();
 
         // Action Buttons are revealed
@@ -2044,29 +2234,49 @@ void main() {
 
         // 3. Verify Reorder is disabled on the swiped item
         final ignorePointerFinders = find.descendant(
-          of: find.ancestor(of: find.text('Action Track 0'), matching: find.byType(NixListItem)),
+          of: find.ancestor(
+            of: find.text('Action Track 0'),
+            matching: find.byType(NixListItem),
+          ),
           matching: find.byType(IgnorePointer),
         );
         expect(ignorePointerFinders, findsWidgets);
 
         // Attempting to drag reorder handle does NOT trigger reorder
         final handleFinder = find.descendant(
-          of: find.ancestor(of: find.text('Action Track 0'), matching: find.byType(NixListItem)),
+          of: find.ancestor(
+            of: find.text('Action Track 0'),
+            matching: find.byType(NixListItem),
+          ),
           matching: find.byType(NixReorderHandle),
         );
-        final dragGesture = await tester.startGesture(tester.getCenter(handleFinder));
+        final dragGesture = await tester.startGesture(
+          tester.getCenter(handleFinder),
+        );
         await dragGesture.moveBy(const Offset(0.0, 80.0));
         await tester.pump();
         await dragGesture.up();
         await tester.pumpAndSettle();
-        expect(reordered, isFalse, reason: 'Reorder must be disabled while action buttons are triggered');
+        expect(
+          reordered,
+          isFalse,
+          reason: 'Reorder must be disabled while action buttons are triggered',
+        );
 
         // 4. Verify Play and Select are disabled on tap
         // Tapping the card closes the action buttons without invoking onTap or onSelectionChanged
         await tester.tap(find.text('Action Track 0'));
         await tester.pumpAndSettle();
-        expect(tapped, isFalse, reason: 'Play / onTap must be disabled while action buttons are open');
-        expect(selected, isFalse, reason: 'Select must be disabled while action buttons are open');
+        expect(
+          tapped,
+          isFalse,
+          reason: 'Play / onTap must be disabled while action buttons are open',
+        );
+        expect(
+          selected,
+          isFalse,
+          reason: 'Select must be disabled while action buttons are open',
+        );
       },
     );
 
@@ -2108,8 +2318,14 @@ void main() {
         expect(inkWellFinder, findsOneWidget);
 
         final inkWell = tester.widget<InkWell>(inkWellFinder);
-        expect(inkWell.splashColor, equals(Colors.purple.withValues(alpha: 0.2)));
-        expect(inkWell.highlightColor, equals(Colors.purple.withValues(alpha: 0.1)));
+        expect(
+          inkWell.splashColor,
+          equals(Colors.purple.withValues(alpha: 0.2)),
+        );
+        expect(
+          inkWell.highlightColor,
+          equals(Colors.purple.withValues(alpha: 0.1)),
+        );
 
         // Tap triggers native ink splash and calls onTap
         await tester.tap(find.text('Splash Item'));
@@ -2183,12 +2399,17 @@ void main() {
 
         // 2. Reorder remaining items: drag Email 1 handle down past Email 2
         final handle1Finder = find.descendant(
-          of: find.ancestor(of: find.text('Email 1'), matching: find.byType(NixListItem)),
+          of: find.ancestor(
+            of: find.text('Email 1'),
+            matching: find.byType(NixListItem),
+          ),
           matching: find.byType(NixReorderHandle),
         );
         expect(handle1Finder, findsOneWidget);
 
-        final dragGesture = await tester.startGesture(tester.getCenter(handle1Finder));
+        final dragGesture = await tester.startGesture(
+          tester.getCenter(handle1Finder),
+        );
         await tester.pump();
         await dragGesture.moveBy(const Offset(0.0, 70.0));
         await tester.pump();
@@ -2258,10 +2479,15 @@ void main() {
 
         // 2. Drag handle to reorder Card 0 past Card 1
         final handle0Finder = find.descendant(
-          of: find.ancestor(of: find.text('Card 0'), matching: find.byType(NixListItem)),
+          of: find.ancestor(
+            of: find.text('Card 0'),
+            matching: find.byType(NixListItem),
+          ),
           matching: find.byType(NixReorderHandle),
         );
-        final dragGesture = await tester.startGesture(tester.getCenter(handle0Finder));
+        final dragGesture = await tester.startGesture(
+          tester.getCenter(handle0Finder),
+        );
         await tester.pump();
         await dragGesture.moveBy(const Offset(0.0, 70.0));
         await tester.pump();
@@ -2270,6 +2496,165 @@ void main() {
 
         expect(reorderedFrom, equals(0));
         expect(reorderedTo, equals(1));
+      },
+    );
+
+    testWidgets(
+      'Gmail style swipe vibrates on slow swipe at trigger and on fast swipe, without double vibrating',
+      (tester) async {
+        final List<String> hapticCalls = [];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (methodCall) async {
+            if (methodCall.method == 'HapticFeedback.vibrate') {
+              hapticCalls.add(methodCall.arguments as String);
+            }
+            return null;
+          },
+        );
+
+        bool swiped = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                height: 300,
+                child: NixListView(
+                  children: [
+                    NixListItem.gmailStyle(
+                      title: const Text('Slow Swipe Item'),
+                      onArchive: () => swiped = true,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Slow swipe:
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('Slow Swipe Item')),
+        );
+        await gesture.moveBy(const Offset(25.0, 0.0));
+        await tester.pump();
+        expect(
+          hapticCalls.isEmpty,
+          isTrue,
+          reason: 'No vibration before threshold',
+        );
+
+        // Move across threshold (180px)
+        await gesture.moveBy(const Offset(180.0, 0.0));
+        await tester.pump();
+        expect(
+          hapticCalls.length,
+          equals(1),
+          reason: 'Vibrates once when crossing threshold',
+        );
+
+        // Finish swipe
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(swiped, isTrue);
+        // Ensure no double vibration after gesture.up()
+        expect(
+          hapticCalls.length,
+          equals(1),
+          reason: 'Did not double vibrate on slow swipe',
+        );
+
+        hapticCalls.clear();
+
+        // 2. Fast swipe (fling / high velocity):
+        bool fastSwiped = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                height: 300,
+                child: NixListView(
+                  children: [
+                    NixListItem.gmailStyle(
+                      title: const Text('Fast Swipe Item'),
+                      onArchive: () => fastSwiped = true,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Fast fling across with velocity
+        await tester.fling(
+          find.text('Fast Swipe Item'),
+          const Offset(200.0, 0.0),
+          1000.0,
+        );
+        await tester.pumpAndSettle();
+
+        expect(fastSwiped, isTrue);
+        // Fast swipe vibrated exactly once!
+        expect(
+          hapticCalls.length,
+          equals(1),
+          reason: 'Vibrates exactly once on fast swipe without missing or double vibrating',
+        );
+
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        );
+      },
+    );
+
+    testWidgets(
+      'Play / Selected and Select / Multi-Select render animated selection pop and full width card with no gaps',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                height: 300,
+                child: NixListView(
+                  selectionMode: NixSelectionMode.multi,
+                  selectedIndices: const {0},
+                  playingIndex: 1,
+                  children: const [
+                    NixListItem(title: Text('Track 0 (Selected)')),
+                    NixListItem(title: Text('Track 1 (Playing)')),
+                    NixListItem(title: Text('Track 2 (Normal)')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        // AnimatedScale on selection checkmark icon
+        expect(
+          find.descendant(
+            of: find.byType(NixListItem),
+            matching: find.byType(AnimatedScale),
+          ),
+          findsWidgets,
+        );
+
+        // AnimatedSize on selection checkbox column
+        expect(
+          find.descendant(
+            of: find.byType(NixListItem),
+            matching: find.byType(AnimatedSize),
+          ),
+          findsWidgets,
+        );
       },
     );
   });

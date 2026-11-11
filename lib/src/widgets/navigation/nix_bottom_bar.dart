@@ -91,6 +91,298 @@ class NixBottomBarItem {
   final VoidCallback? onLongPress;
 }
 
+/// A floating companion action button designed for [NixBottomBar] with built-in
+/// transparent background support, frosted glass blur (acrylic effect), adaptive dimming,
+/// badge support, tooltips, and smooth spring press animations.
+class NixBarActionButton extends StatefulWidget {
+  const NixBarActionButton({
+    super.key,
+    required this.icon,
+    required this.onPressed,
+    this.onLongPress,
+    this.label,
+    this.tooltip,
+    this.badge,
+    this.blur = 18.0,
+    this.enableFrostedBlur = true,
+    this.backgroundColor,
+    this.foregroundColor,
+    this.borderColor,
+    this.enableDim = false,
+    this.dim,
+    this.dimColor,
+    this.adaptDim = true,
+    this.elevation = 0.0,
+    this.size = 52.0,
+    this.padding,
+  });
+
+  /// The icon widget displayed inside the button.
+  final Widget icon;
+
+  /// Callback when pressed.
+  final VoidCallback? onPressed;
+
+  /// Optional callback when long-pressed.
+  final VoidCallback? onLongPress;
+
+  /// Optional text label (turns button into an expressive pill with icon + label).
+  final String? label;
+
+  /// Optional tooltip message displayed on long-press or mouse hover.
+  final String? tooltip;
+
+  /// Optional badge widget displayed in the top-right corner.
+  final Widget? badge;
+
+  /// Blur sigma for frosted glass effect. Defaults to 18.0.
+  final double blur;
+
+  /// Whether frosted glass blur is enabled. Defaults to `true`.
+  final bool enableFrostedBlur;
+
+  /// Optional background color. Defaults to translucent surface container when frosted.
+  final Color? backgroundColor;
+
+  /// Optional foreground color for icon and text.
+  final Color? foregroundColor;
+
+  /// Optional border color. If null and frosted blur is active, a subtle highlight border is applied.
+  final Color? borderColor;
+
+  /// Whether dimming tint is enabled.
+  final bool enableDim;
+
+  /// Dim intensity between 0.0 and 1.0. If null and [enableDim] is true, adapts to theme brightness.
+  final double? dim;
+
+  /// Custom dim tint color.
+  final Color? dimColor;
+
+  /// Whether dim adapts to theme brightness. Defaults to `true`.
+  final bool adaptDim;
+
+  /// Drop shadow elevation. Defaults to 0.0.
+  final double elevation;
+
+  /// Diameter of circular action button, or height if [label] is provided. Defaults to 52.0.
+  final double size;
+
+  /// Inner padding.
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  State<NixBarActionButton> createState() => _NixBarActionButtonState();
+}
+
+class _NixBarActionButtonState extends State<NixBarActionButton> {
+  bool _isPressed = false;
+  bool _isHovered = false;
+
+  void _handleTapDown(TapDownDetails _) {
+    if (widget.onPressed == null) return;
+    setState(() => _isPressed = true);
+  }
+
+  void _handleTapUp(TapUpDetails _) {
+    setState(() => _isPressed = false);
+  }
+
+  void _handleTapCancel() {
+    setState(() => _isPressed = false);
+  }
+
+  void _handleTap() {
+    if (widget.onPressed == null) return;
+    HapticFeedback.lightImpact();
+    widget.onPressed!();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final nixTheme = NixThemeData.of(context);
+    final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    final effectiveBlur = widget.blur > 0.0
+        ? widget.blur
+        : (widget.enableFrostedBlur ? 18.0 : 0.0);
+    final isFrosted = effectiveBlur > 0.0;
+
+    // Background color:
+    Color bg;
+    if (widget.backgroundColor != null) {
+      bg = widget.backgroundColor!;
+    } else if (isFrosted) {
+      final baseSurface = nixTheme.surfaceContainer ?? colors.surfaceContainer;
+      bg = baseSurface.withValues(alpha: isDark ? 0.65 : 0.72);
+    } else {
+      bg = nixTheme.surfaceContainer ?? colors.surfaceContainer;
+    }
+
+    final isTransparent = bg == Colors.transparent || bg.a == 0.0;
+    final isTranslucent = isTransparent || bg.a < 1.0 || isFrosted;
+    final effectiveElevation = isTranslucent ? 0.0 : widget.elevation;
+
+    // Dim calculation:
+    final bool isDimActive =
+        widget.enableDim || (widget.dim != null && widget.dim! > 0);
+    double effectiveDimAmount = 0.0;
+    if (isDimActive) {
+      if (widget.dim != null) {
+        effectiveDimAmount = widget.dim!.clamp(0.0, 1.0);
+      } else if (widget.adaptDim) {
+        effectiveDimAmount = isDark ? 0.22 : 0.08;
+      } else {
+        effectiveDimAmount = 0.15;
+      }
+    }
+    final Color effectiveDimColor = (widget.dimColor ?? Colors.black)
+        .withValues(alpha: effectiveDimAmount);
+
+    // Border:
+    BorderSide effectiveBorderSide;
+    if (widget.borderColor != null) {
+      effectiveBorderSide = BorderSide(color: widget.borderColor!);
+    } else if (isFrosted) {
+      final highlightColor = isDark
+          ? Colors.white.withValues(alpha: 0.14)
+          : Colors.black.withValues(alpha: 0.08);
+      effectiveBorderSide = BorderSide(color: highlightColor, width: 0.8);
+    } else {
+      effectiveBorderSide = BorderSide.none;
+    }
+
+    // Foreground color:
+    final Color fg =
+        widget.foregroundColor ?? (nixTheme.primary ?? colors.primary);
+
+    // Icon + Badge:
+    Widget iconWidget = widget.icon;
+    if (widget.badge != null) {
+      iconWidget = Stack(
+        clipBehavior: Clip.none,
+        children: [
+          iconWidget,
+          Positioned(top: -4, right: -6, child: widget.badge!),
+        ],
+      );
+    }
+
+    Widget content;
+    if (widget.label != null) {
+      content = Padding(
+        padding:
+            widget.padding ??
+            const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            IconTheme(
+              data: IconThemeData(color: fg, size: 22.0),
+              child: iconWidget,
+            ),
+            const SizedBox(width: 8.0),
+            Text(
+              widget.label!,
+              style: TextStyle(
+                color: fg,
+                fontWeight: FontWeight.w600,
+                fontSize: 13.5,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      content = SizedBox(
+        width: widget.size,
+        height: widget.size,
+        child: Center(
+          child: IconTheme(
+            data: IconThemeData(color: fg, size: 24.0),
+            child: iconWidget,
+          ),
+        ),
+      );
+    }
+
+    if (effectiveDimAmount > 0) {
+      content = DecoratedBox(
+        decoration: BoxDecoration(color: effectiveDimColor),
+        child: content,
+      );
+    }
+
+    final surfaceColor = _isHovered
+        ? bg.withValues(alpha: math.min(1.0, bg.a + 0.1))
+        : bg;
+
+    Widget buttonSurface;
+    if (isFrosted) {
+      buttonSurface = ClipPath(
+        clipper: const ShapeBorderClipper(shape: StadiumBorder()),
+        clipBehavior: Clip.antiAlias,
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(
+            sigmaX: effectiveBlur,
+            sigmaY: effectiveBlur,
+          ),
+          child: DecoratedBox(
+            decoration: ShapeDecoration(
+              color: surfaceColor,
+              shape: StadiumBorder(side: effectiveBorderSide),
+            ),
+            child: content,
+          ),
+        ),
+      );
+    } else {
+      buttonSurface = Material(
+        color: surfaceColor,
+        elevation: effectiveElevation,
+        shadowColor: isTransparent
+            ? Colors.transparent
+            : Colors.black.withValues(alpha: 0.18),
+        shape: StadiumBorder(side: effectiveBorderSide),
+        clipBehavior: Clip.antiAlias,
+        child: content,
+      );
+    }
+
+    Widget result = MouseRegion(
+      cursor: widget.onPressed != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: _handleTapDown,
+        onTapUp: _handleTapUp,
+        onTapCancel: _handleTapCancel,
+        onTap: _handleTap,
+        onLongPress: widget.onLongPress,
+        child: AnimatedScale(
+          scale: _isPressed ? 0.93 : (_isHovered ? 1.04 : 1.0),
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOutCubic,
+          child: buttonSurface,
+        ),
+      ),
+    );
+
+    if (widget.tooltip != null) {
+      result = Tooltip(message: widget.tooltip!, child: result);
+    }
+
+    return result;
+  }
+}
+
 /// A floating stadium/pill bottom navigation bar with an interactive sliding indicator,
 /// dynamic item widths, responsive screen-size scaling, separate companion action buttons
 /// (left or right), and scroll-to-hide/shrink support.
@@ -126,6 +418,16 @@ class NixBottomBar extends StatefulWidget {
     this.selectedItemColor,
     this.unselectedItemColor,
     this.indicatorColor,
+    this.adaptIndicatorTransparency = true,
+    this.blur = 0.0,
+    this.enableFrostedBlur = false,
+    this.blurAction = true,
+    this.actionBackgroundColor,
+    this.actionBorderColor,
+    this.enableDim = false,
+    this.dim,
+    this.dimColor,
+    this.adaptDim = true,
     this.elevation = 0.0,
     this.margin = const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 14.0),
     this.padding = const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
@@ -172,6 +474,16 @@ class NixBottomBar extends StatefulWidget {
     this.selectedItemColor,
     this.unselectedItemColor,
     this.indicatorColor,
+    this.adaptIndicatorTransparency = true,
+    this.blur = 0.0,
+    this.enableFrostedBlur = false,
+    this.blurAction = true,
+    this.actionBackgroundColor,
+    this.actionBorderColor,
+    this.enableDim = false,
+    this.dim,
+    this.dimColor,
+    this.adaptDim = true,
     this.elevation = 0.0,
     this.margin = const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 14.0),
     this.padding = const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
@@ -280,6 +592,57 @@ class NixBottomBar extends StatefulWidget {
 
   /// Color of the sliding pill indicator.
   final Color? indicatorColor;
+
+  /// Whether the sliding indicator's transparency automatically adapts to the navigation bar's
+  /// transparency, frosted glass blur, and dim level.
+  ///
+  /// Defaults to `true`. When `true`, the indicator remains elegantly translucent and readable
+  /// over frosted glass and transparent surfaces rather than being an opaque solid block.
+  final bool adaptIndicatorTransparency;
+
+  /// The Gaussian blur sigma applied behind the navigation bar and its companion action button
+  /// for a frosted glass / glassmorphic effect.
+  ///
+  /// When greater than 0, a [BackdropFilter] with [ui.ImageFilter.blur] is applied.
+  /// Defaults to 0.0 (blur disabled). Set e.g. to 16.0 or 20.0 to enable frosted blur.
+  final double blur;
+
+  /// Convenience toggle to enable frosted glass blur.
+  ///
+  /// If `true` and [blur] is 0, [blur] defaults to 18.0.
+  final bool enableFrostedBlur;
+
+  /// Whether companion action widgets (such as [action], [leading], [trailing])
+  /// automatically inherit the frosted glass blur and translucent styling of the navigation bar.
+  /// Defaults to `true`.
+  final bool blurAction;
+
+  /// Optional background color override for companion action widgets when frosted or translucent.
+  /// If null, matches the navigation bar's background color.
+  final Color? actionBackgroundColor;
+
+  /// Optional border color override for companion action widgets.
+  final Color? actionBorderColor;
+
+  /// Whether a dimming tint layer is applied behind the frosted surface of the navigation bar
+  /// and companion action widgets to enhance contrast and legibility over bright or colorful content.
+  final bool enableDim;
+
+  /// Custom dim intensity (between 0.0 and 1.0).
+  ///
+  /// When specified (> 0), enables dimming with this explicit opacity.
+  /// If null and [enableDim] is `true`, dim intensity adapts automatically based on
+  /// theme brightness and translucency.
+  final double? dim;
+
+  /// Custom color used for the dim tint layer.
+  /// Defaults to black with adapted alpha in dark mode, and a soft dark tint in light mode.
+  final Color? dimColor;
+
+  /// Whether the dim intensity automatically adapts to the current theme brightness
+  /// (e.g. deeper dim in dark mode for OLED contrast, subtler dim in light mode).
+  /// Defaults to `true`.
+  final bool adaptDim;
 
   /// Elevation / drop shadow of the floating pill (rendered when background is not transparent).
   final double elevation;
@@ -576,20 +939,89 @@ class _NixBottomBarState extends State<NixBottomBar>
     final theme = Theme.of(context);
     final nixTheme = NixThemeData.of(context);
     final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
-    final bg =
-        widget.backgroundColor ??
-        (nixTheme.surfaceContainer ?? colors.surfaceContainer);
+    final effectiveBlur = widget.blur > 0.0
+        ? widget.blur
+        : (widget.enableFrostedBlur ? 18.0 : 0.0);
+    final isFrosted = effectiveBlur > 0.0;
+
+    // Background color resolution:
+    final Color bg;
+    if (widget.backgroundColor != null) {
+      bg = widget.backgroundColor!;
+    } else if (isFrosted) {
+      final baseSurface = nixTheme.surfaceContainer ?? colors.surfaceContainer;
+      bg = baseSurface.withValues(alpha: isDark ? 0.65 : 0.72);
+    } else {
+      bg = nixTheme.surfaceContainer ?? colors.surfaceContainer;
+    }
+
     final isTransparent = bg == Colors.transparent || bg.a == 0.0;
-    final effectiveElevation = isTransparent ? 0.0 : widget.elevation;
+    final isTranslucent = isTransparent || bg.a < 1.0 || isFrosted;
+    final effectiveElevation = isTranslucent ? 0.0 : widget.elevation;
+
+    // Dim calculation:
+    final bool isDimActive =
+        widget.enableDim || (widget.dim != null && widget.dim! > 0);
+    double effectiveDimAmount = 0.0;
+    if (isDimActive) {
+      if (widget.dim != null) {
+        effectiveDimAmount = widget.dim!.clamp(0.0, 1.0);
+      } else if (widget.adaptDim) {
+        effectiveDimAmount = isDark ? 0.22 : 0.08;
+      } else {
+        effectiveDimAmount = 0.15;
+      }
+    }
+    final Color effectiveDimColor = (widget.dimColor ?? Colors.black)
+        .withValues(alpha: effectiveDimAmount);
+
+    // Border:
+    BorderSide effectiveBorderSide;
+    if (widget.borderColor != null) {
+      effectiveBorderSide = BorderSide(color: widget.borderColor!);
+    } else if (isFrosted) {
+      final highlightColor = isDark
+          ? Colors.white.withValues(alpha: 0.14)
+          : Colors.black.withValues(alpha: 0.08);
+      effectiveBorderSide = BorderSide(color: highlightColor, width: 0.8);
+    } else {
+      effectiveBorderSide = BorderSide.none;
+    }
 
     final activeFg =
         widget.selectedItemColor ?? (nixTheme.primary ?? colors.primary);
     final inactiveFg = widget.unselectedItemColor ?? colors.onSurfaceVariant;
-    final indBg =
-        widget.indicatorColor ??
-        (nixTheme.primary?.withValues(alpha: 0.16) ??
-            colors.primary.withValues(alpha: 0.16));
+
+    // Adaptive Indicator Transparency:
+    final baseIndColor =
+        widget.indicatorColor ?? (nixTheme.primary ?? colors.primary);
+    Color indBg;
+    if (widget.indicatorColor != null && !widget.adaptIndicatorTransparency) {
+      indBg = widget.indicatorColor!;
+    } else if (widget.indicatorColor != null &&
+        widget.indicatorColor!.a < 1.0 &&
+        !isFrosted &&
+        !isTransparent) {
+      indBg = widget.indicatorColor!;
+    } else if (isFrosted) {
+      // Frosted blur active: indicator adapts its alpha based on theme brightness, blur & dim
+      final double baseAlpha = isDark ? 0.28 : 0.22;
+      final double adaptedAlpha = (baseAlpha + (effectiveDimAmount * 0.15))
+          .clamp(0.14, 0.48);
+      indBg = baseIndColor.withValues(alpha: adaptedAlpha);
+    } else if (isTranslucent) {
+      // Translucent or transparent bar without blur:
+      final double adaptedAlpha = (bg.a * 0.25 + 0.15).clamp(0.12, 0.40);
+      indBg = baseIndColor.withValues(alpha: adaptedAlpha);
+    } else {
+      // Standard opaque bar default
+      indBg =
+          widget.indicatorColor ??
+          (nixTheme.primary?.withValues(alpha: 0.16) ??
+              colors.primary.withValues(alpha: 0.16));
+    }
 
     final effectiveActiveIndex = _isDragging
         ? (_dragActiveIndex ?? _indicatorPosition.round())
@@ -597,9 +1029,9 @@ class _NixBottomBarState extends State<NixBottomBar>
 
     final effectiveMainAxisSize =
         widget.style == NixBottomBarStyle.separated &&
-                widget.mainAxisSize == MainAxisSize.max
-            ? MainAxisSize.min
-            : widget.mainAxisSize;
+            widget.mainAxisSize == MainAxisSize.max
+        ? MainAxisSize.min
+        : widget.mainAxisSize;
 
     // 1. Navigation items layout with integrated sliding indicator:
     Widget itemsSection = _NixBarLayout(
@@ -638,20 +1070,54 @@ class _NixBottomBarState extends State<NixBottomBar>
     }
 
     // 2. The main navigation bar stadium pill:
-    final navBarPill = Material(
-      color: bg,
-      elevation: effectiveElevation,
-      shadowColor: isTransparent
-          ? Colors.transparent
-          : Colors.black.withValues(alpha: 0.18),
-      shape: StadiumBorder(
-        side: widget.borderColor != null
-            ? BorderSide(color: widget.borderColor!)
-            : BorderSide.none,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(padding: widget.padding, child: itemsSection),
-    );
+    Widget pillContent = Padding(padding: widget.padding, child: itemsSection);
+    if (effectiveDimAmount > 0) {
+      pillContent = DecoratedBox(
+        decoration: BoxDecoration(color: effectiveDimColor),
+        child: pillContent,
+      );
+    }
+
+    Widget navBarPill;
+    if (isFrosted) {
+      navBarPill = ClipPath(
+        clipper: const ShapeBorderClipper(shape: StadiumBorder()),
+        clipBehavior: Clip.antiAlias,
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(
+            sigmaX: effectiveBlur,
+            sigmaY: effectiveBlur,
+          ),
+          child: DecoratedBox(
+            decoration: ShapeDecoration(
+              color: bg,
+              shape: StadiumBorder(side: effectiveBorderSide),
+            ),
+            child: pillContent,
+          ),
+        ),
+      );
+      if (effectiveElevation > 0) {
+        navBarPill = Material(
+          color: Colors.transparent,
+          elevation: effectiveElevation,
+          shadowColor: Colors.black.withValues(alpha: 0.18),
+          shape: const StadiumBorder(),
+          child: navBarPill,
+        );
+      }
+    } else {
+      navBarPill = Material(
+        color: bg,
+        elevation: effectiveElevation,
+        shadowColor: isTransparent
+            ? Colors.transparent
+            : Colors.black.withValues(alpha: 0.18),
+        shape: StadiumBorder(side: effectiveBorderSide),
+        clipBehavior: Clip.antiAlias,
+        child: pillContent,
+      );
+    }
 
     // 3. Resolve separate companion side actions (beside the navigation bar on left or right):
     Widget? leftAction = widget.leading;
@@ -663,6 +1129,32 @@ class _NixBottomBarState extends State<NixBottomBar>
       } else {
         rightAction ??= widget.action;
       }
+    }
+
+    if (leftAction != null) {
+      leftAction = _wrapAction(
+        leftAction,
+        isFrosted: isFrosted,
+        effectiveBlur: effectiveBlur,
+        bg: bg,
+        effectiveBorderSide: effectiveBorderSide,
+        effectiveDimColor: effectiveDimColor,
+        effectiveDimAmount: effectiveDimAmount,
+        isDark: isDark,
+      );
+    }
+
+    if (rightAction != null) {
+      rightAction = _wrapAction(
+        rightAction,
+        isFrosted: isFrosted,
+        effectiveBlur: effectiveBlur,
+        bg: bg,
+        effectiveBorderSide: effectiveBorderSide,
+        effectiveDimColor: effectiveDimColor,
+        effectiveDimAmount: effectiveDimAmount,
+        isDark: isDark,
+      );
     }
 
     // 4. Assemble the complete floating bar group:
@@ -715,10 +1207,7 @@ class _NixBottomBarState extends State<NixBottomBar>
         );
       } else {
         // No companion action: navigation bar pill hugs items at BottomLeft!
-        fullBar = Align(
-          alignment: Alignment.bottomLeft,
-          child: navBarPill,
-        );
+        fullBar = Align(alignment: Alignment.bottomLeft, child: navBarPill);
       }
     } else {
       if (leftAction == null && rightAction == null) {
@@ -779,9 +1268,7 @@ class _NixBottomBarState extends State<NixBottomBar>
           }
 
           final minScale = widget.shrinkScale.clamp(0.5, 1.0);
-          final scale = _effectiveShrink
-              ? (1.0 - ((1.0 - minScale) * t))
-              : 1.0;
+          final scale = _effectiveShrink ? (1.0 - ((1.0 - minScale) * t)) : 1.0;
           final translateY = widget.hideOnScroll ? (120.0 * t) : 0.0;
           final opacity = widget.hideOnScroll ? (1.0 - t).clamp(0.0, 1.0) : 1.0;
 
@@ -823,6 +1310,81 @@ class _NixBottomBarState extends State<NixBottomBar>
         child: Padding(padding: widget.margin, child: fullBar),
       ),
     );
+  }
+
+  Widget _wrapAction(
+    Widget actionWidget, {
+    required bool isFrosted,
+    required double effectiveBlur,
+    required Color bg,
+    required BorderSide effectiveBorderSide,
+    required Color effectiveDimColor,
+    required double effectiveDimAmount,
+    required bool isDark,
+  }) {
+    if (actionWidget is NixBarActionButton) {
+      return actionWidget;
+    }
+
+    if (!widget.blurAction) {
+      return actionWidget;
+    }
+
+    if (!isFrosted && bg.a == 1.0 && effectiveDimAmount == 0) {
+      return actionWidget;
+    }
+
+    final actionBg =
+        widget.actionBackgroundColor ??
+        (isFrosted ? bg : (bg.a < 1.0 ? bg : Colors.transparent));
+
+    final actionBorder = widget.actionBorderColor != null
+        ? BorderSide(color: widget.actionBorderColor!)
+        : effectiveBorderSide;
+
+    Widget content = actionWidget;
+    if (effectiveDimAmount > 0) {
+      content = DecoratedBox(
+        decoration: BoxDecoration(color: effectiveDimColor),
+        child: content,
+      );
+    }
+
+    if (isFrosted && effectiveBlur > 0) {
+      return ClipPath(
+        clipper: const ShapeBorderClipper(shape: StadiumBorder()),
+        clipBehavior: Clip.antiAlias,
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(
+            sigmaX: effectiveBlur,
+            sigmaY: effectiveBlur,
+          ),
+          child: DecoratedBox(
+            decoration: ShapeDecoration(
+              color: actionBg,
+              shape: StadiumBorder(side: actionBorder),
+            ),
+            child: content,
+          ),
+        ),
+      );
+    }
+
+    if (actionBg.a < 1.0 || actionBorder != BorderSide.none) {
+      return ClipPath(
+        clipper: const ShapeBorderClipper(shape: StadiumBorder()),
+        clipBehavior: Clip.antiAlias,
+        child: DecoratedBox(
+          decoration: ShapeDecoration(
+            color: actionBg,
+            shape: StadiumBorder(side: actionBorder),
+          ),
+          child: content,
+        ),
+      );
+    }
+
+    return content;
   }
 
   Widget _buildItem({
@@ -867,9 +1429,11 @@ class _NixBottomBarState extends State<NixBottomBar>
       }
 
       final hasIcon = iconWidget != null;
-      final canShowLabel = item.label != null &&
+      final canShowLabel =
+          item.label != null &&
           widget.labelBehavior != NixNavigationLabelBehavior.alwaysHide;
-      final showLabel = canShowLabel &&
+      final showLabel =
+          canShowLabel &&
           (widget.labelBehavior == NixNavigationLabelBehavior.alwaysShow ||
               isSelected);
 
@@ -927,7 +1491,8 @@ class _NixBottomBarState extends State<NixBottomBar>
       minItemWidth = 64.0;
     } else {
       final hasIcon = item.icon != null;
-      final canShowLabel = item.label != null &&
+      final canShowLabel =
+          item.label != null &&
           widget.labelBehavior != NixNavigationLabelBehavior.alwaysHide;
       if (hasIcon && canShowLabel) {
         // Icon + Text: dynamic width proportional to label length with comfortable breathing room

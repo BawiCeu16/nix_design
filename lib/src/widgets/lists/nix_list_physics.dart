@@ -12,8 +12,14 @@ import 'package:flutter/material.dart';
 class NixListPhysics {
   const NixListPhysics._();
 
-  /// Default container border radius (16px).
-  static const double containerRadius = 16.0;
+  /// Default container border radius (20px).
+  static const double containerRadius = 20.0;
+
+  /// Default vertical gap between list items (2px).
+  static const double defaultGap = 2.0;
+
+  /// Default vertical gap between list items (2px).
+  static const double itemGap = 2.0;
 
   /// Default outer corner radius for top-of-first, bottom-of-last, or isolated items (12px).
   static const double outerItemRadius = 12.0;

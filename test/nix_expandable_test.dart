@@ -49,7 +49,7 @@ void main() {
       expect(expandedReported, isFalse);
     });
 
-    testWidgets('Single standalone item has consistent 16px radius both when collapsed and when expanded', (tester) async {
+    testWidgets('Single standalone item has consistent containerRadius (20px) both when collapsed and when expanded', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -62,16 +62,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Collapsed: stable 16px radius
+      // Collapsed: stable container radius (20px)
       AnimatedContainer container = tester.widget<AnimatedContainer>(
         find.byType(AnimatedContainer).first,
       );
       BoxDecoration decoration = container.decoration as BoxDecoration;
       BorderRadius radius = decoration.borderRadius as BorderRadius;
-      expect(radius.topLeft.x, equals(16.0));
-      expect(radius.bottomRight.x, equals(16.0));
+      expect(radius.topLeft.x, equals(NixListPhysics.containerRadius));
+      expect(radius.bottomRight.x, equals(NixListPhysics.containerRadius));
 
-      // Expand: remains stable 16px radius (zero shape morphing)
+      // Expand: remains stable container radius (20px) (zero shape morphing)
       await tester.tap(find.text('Standalone Expandable'));
       await tester.pumpAndSettle();
 
@@ -80,8 +80,8 @@ void main() {
       );
       decoration = container.decoration as BoxDecoration;
       radius = decoration.borderRadius as BorderRadius;
-      expect(radius.topLeft.x, equals(16.0));
-      expect(radius.bottomRight.x, equals(16.0));
+      expect(radius.topLeft.x, equals(NixListPhysics.containerRadius));
+      expect(radius.bottomRight.x, equals(NixListPhysics.containerRadius));
     });
 
     testWidgets('Respects segmented radii inside NixSwitchList', (tester) async {

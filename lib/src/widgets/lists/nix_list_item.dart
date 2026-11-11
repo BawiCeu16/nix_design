@@ -634,6 +634,7 @@ class _NixListItemState extends State<NixListItem>
     with TickerProviderStateMixin {
   double _swipeOffset = 0.0;
   bool _thresholdTriggered = false;
+  bool _hasVibratedForSwipe = false;
   bool _isDismissed = false;
   bool _isOpen = false;
   bool _isActionSwiping = false;
@@ -791,6 +792,9 @@ class _NixListItemState extends State<NixListItem>
       _isActionSwiping = true;
     }
 
+    _thresholdTriggered = false;
+    _hasVibratedForSwipe = false;
+
     // Explicitly cancel any pending long-press reorder so horizontal swipe is isolated
     scope?.onCancelReorder?.call();
     if (_resetController.isAnimating) {
@@ -882,11 +886,15 @@ class _NixListItemState extends State<NixListItem>
         final crossed = newOffset.abs() >= thresholdPx;
         if (crossed && !_thresholdTriggered) {
           _thresholdTriggered = true;
-          if (activeAction.hapticFeedback) {
-            HapticFeedback.mediumImpact();
+          if (!_hasVibratedForSwipe) {
+            _hasVibratedForSwipe = true;
+            if (activeAction.hapticFeedback) {
+              HapticFeedback.mediumImpact();
+            }
           }
         } else if (!crossed && _thresholdTriggered) {
           _thresholdTriggered = false;
+          _hasVibratedForSwipe = false;
           if (activeAction.hapticFeedback) {
             HapticFeedback.selectionClick();
           }
@@ -957,6 +965,15 @@ class _NixListItemState extends State<NixListItem>
       final isCrossed = _swipeOffset.abs() >= thresholdPx;
 
       if (isCrossed || isFling) {
+        // Fast swipe / fling catch: vibrate if not already vibrated during drag update
+        if (!_hasVibratedForSwipe) {
+          _thresholdTriggered = true;
+          _hasVibratedForSwipe = true;
+          if (activeAction.hapticFeedback) {
+            HapticFeedback.mediumImpact();
+          }
+        }
+
         if (activeAction.actionType == NixSwipeActionType.dismiss) {
           bool canDismiss = true;
           if (activeAction.confirmDismiss != null) {
@@ -981,6 +998,7 @@ class _NixListItemState extends State<NixListItem>
 
   void _animateTo(double target) {
     _thresholdTriggered = false;
+    _hasVibratedForSwipe = false;
     if (_resetController.isAnimating) {
       _resetController.stop();
     }
@@ -1009,6 +1027,8 @@ class _NixListItemState extends State<NixListItem>
       _isDismissed = true;
       _isOpen = false;
       _isActionSwiping = false;
+      _thresholdTriggered = false;
+      _hasVibratedForSwipe = false;
     });
     final scope = NixListScope.of(context);
     scope?.onActionOpenChanged?.call(scope.index, false);
@@ -1042,6 +1062,7 @@ class _NixListItemState extends State<NixListItem>
 
   void _resetSpringBack() {
     _thresholdTriggered = false;
+    _hasVibratedForSwipe = false;
     _animateTo(0.0);
   }
 
@@ -1177,11 +1198,11 @@ class _NixListItemState extends State<NixListItem>
       effectiveBorder = widget.border;
     }
 
-    // Elevation & shadow (defaults to subtle elevation for active playing and flat for select)
+    // Elevation & shadow (flat 0.0 by default for both select and play)
     final effectiveElevation = isEffectiveSelected
         ? (widget.selectedElevation ?? 0.0)
         : isEffectivePlaying
-        ? (widget.activeElevation ?? 2.0)
+        ? (widget.activeElevation ?? 0.0)
         : (widget.elevation ?? 0.0);
 
     final List<BoxShadow>? effectiveShadow = isCurrentlySwiping
@@ -1230,11 +1251,23 @@ class _NixListItemState extends State<NixListItem>
               widget.child ??
               Row(
                 children: [
-                  if (isEffectiveSelectable &&
-                      widget.showSelectionIndicator) ...[
-                    _buildSelectionIndicator(colors, isEffectiveSelected),
-                    const SizedBox(width: 12),
-                  ],
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    child: (isEffectiveSelectable &&
+                            widget.showSelectionIndicator)
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildSelectionIndicator(
+                                colors,
+                                isEffectiveSelected,
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                          )
+                        : const SizedBox.shrink(),
+                  ),
                   if (widget.leading != null) ...[
                     widget.leading!,
                     const SizedBox(width: 12),
@@ -1284,9 +1317,16 @@ class _NixListItemState extends State<NixListItem>
                       ],
                     ),
                   ),
-                  if (isEffectivePlaying && widget.customEqualizer != null) ...[
+                  if (isEffectivePlaying &&
+                      widget.showEqualizerWhenPlaying &&
+                      widget.customEqualizer != null) ...[
                     const SizedBox(width: 8),
-                    widget.customEqualizer!,
+                    AnimatedScale(
+                      scale: 1.0,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutBack,
+                      child: widget.customEqualizer!,
+                    ),
                   ],
                   if (widget.trailing != null) ...[
                     const SizedBox(width: 8),
@@ -1314,7 +1354,7 @@ class _NixListItemState extends State<NixListItem>
           final cardSurface = AnimatedContainer(
             duration: (scope?.isReordering ?? false)
                 ? Duration.zero
-                : const Duration(milliseconds: 140),
+                : const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
             decoration: BoxDecoration(
               color: effectiveBgColor,
@@ -1345,7 +1385,7 @@ class _NixListItemState extends State<NixListItem>
             ),
           );
 
-          // Wrap in gesture detector for horizontal swipe actions
+          // Wrap in gesture detector for horizontal swipe actions (full width, no horizontal gaps)
           Widget itemWidget = GestureDetector(
             behavior: HitTestBehavior.opaque,
             onHorizontalDragStart: _onHorizontalDragStart,
@@ -1403,9 +1443,18 @@ class _NixListItemState extends State<NixListItem>
           width: 2.0,
         ),
       ),
-      child: isSelected
-          ? Icon(Icons.check_rounded, size: 14.0, color: colors.onPrimary)
-          : null,
+      child: Center(
+        child: AnimatedScale(
+          scale: isSelected ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutBack,
+          child: Icon(
+            Icons.check_rounded,
+            size: 14.0,
+            color: colors.onPrimary,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1636,26 +1685,49 @@ class _NixListItemState extends State<NixListItem>
             );
           }
 
-          // Centered Material 3 Expressive icon presentation (clean, solid, no popup/scale animation)
+          // Animated Material 3 Expressive icon presentation with smooth entry scaling, rotation, and threshold pop
+          final double revealFactor = (revealDistance / 50.0).clamp(0.0, 1.0);
+          final double entryScale = Curves.easeOutCubic.transform(revealFactor);
+          final double targetScale = _thresholdTriggered ? 1.25 : entryScale;
+          final double iconOpacity = (revealDistance / 28.0).clamp(0.0, 1.0);
+          final double targetRotation = _thresholdTriggered
+              ? (isRightSwipe ? 0.04 : -0.04)
+              : 0.0;
+
           final Widget centeredContent = Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (action.icon != null)
-                Container(
-                  width: badgeSize,
-                  height: badgeSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.22),
-                  ),
-                  child: Center(
-                    child: IconTheme(
-                      data: IconThemeData(
-                        color: fgColor,
-                        size: (badgeSize * 0.58).clamp(18.0, 24.0),
+                AnimatedRotation(
+                  turns: targetRotation,
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutBack,
+                  child: AnimatedScale(
+                    scale: targetScale,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutBack,
+                    child: Opacity(
+                      opacity: iconOpacity,
+                      child: Container(
+                        width: badgeSize,
+                        height: badgeSize,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(
+                            alpha: _thresholdTriggered ? 0.32 : 0.22,
+                          ),
+                        ),
+                        child: Center(
+                          child: IconTheme(
+                            data: IconThemeData(
+                              color: fgColor,
+                              size: (badgeSize * 0.58).clamp(18.0, 24.0),
+                            ),
+                            child: action.icon!,
+                          ),
+                        ),
                       ),
-                      child: action.icon!,
                     ),
                   ),
                 ),
@@ -1720,9 +1792,14 @@ class _NixListItemState extends State<NixListItem>
                 children: [
                   if (isRightSwipe) ...[
                     if (action.icon != null)
-                      IconTheme(
-                        data: IconThemeData(color: fgColor, size: 24.0),
-                        child: action.icon!,
+                      AnimatedScale(
+                        scale: _thresholdTriggered ? 1.25 : 1.0,
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutBack,
+                        child: IconTheme(
+                          data: IconThemeData(color: fgColor, size: 24.0),
+                          child: action.icon!,
+                        ),
                       ),
                     if (action.label != null) ...[
                       const SizedBox(width: 8),
@@ -1748,9 +1825,14 @@ class _NixListItemState extends State<NixListItem>
                       const SizedBox(width: 8),
                     ],
                     if (action.icon != null)
-                      IconTheme(
-                        data: IconThemeData(color: fgColor, size: 24.0),
-                        child: action.icon!,
+                      AnimatedScale(
+                        scale: _thresholdTriggered ? 1.25 : 1.0,
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutBack,
+                        child: IconTheme(
+                          data: IconThemeData(color: fgColor, size: 24.0),
+                          child: action.icon!,
+                        ),
                       ),
                   ],
                 ],

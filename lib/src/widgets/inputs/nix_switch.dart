@@ -84,11 +84,12 @@ class _NixSwitchState extends State<NixSwitch>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late CurvedAnimation _curvedAnimation;
-  bool _dragIsOn = false;
+  bool? _lastVibratedEnd;
 
   @override
   void initState() {
     super.initState();
+    _lastVibratedEnd = widget.value;
     _controller = AnimationController(
       vsync: this,
       duration: widget.duration ?? const Duration(milliseconds: 200),
@@ -99,6 +100,22 @@ class _NixSwitchState extends State<NixSwitch>
       curve: widget.curve ?? Curves.easeOutCubic,
       reverseCurve: (widget.curve ?? Curves.easeOutCubic).flipped,
     );
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _triggerHapticIfFullySlid(true);
+      } else if (status == AnimationStatus.dismissed) {
+        _triggerHapticIfFullySlid(false);
+      }
+    });
+  }
+
+  void _triggerHapticIfFullySlid(bool isOn) {
+    if (_lastVibratedEnd != isOn) {
+      _lastVibratedEnd = isOn;
+      if (widget.enableFeedback && widget.enabled) {
+        HapticFeedback.lightImpact();
+      }
+    }
   }
 
   @override
@@ -133,16 +150,13 @@ class _NixSwitchState extends State<NixSwitch>
 
   void _handleTap() {
     if (widget.enabled) {
-      if (widget.enableFeedback) {
-        HapticFeedback.lightImpact();
-      }
+      // Haptics will trigger when indicator is fully slid via status listener
       widget.onChanged!(!widget.value);
     }
   }
 
   void _handleDragStart(DragStartDetails details) {
     if (!widget.enabled) return;
-    _dragIsOn = _controller.value >= 0.5;
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
@@ -153,31 +167,23 @@ class _NixSwitchState extends State<NixSwitch>
           0.0,
           1.0,
         );
-    final currentIsOn = _controller.value >= 0.5;
-    if (currentIsOn != _dragIsOn) {
-      _dragIsOn = currentIsOn;
-      if (widget.enableFeedback) {
-        HapticFeedback.lightImpact();
-      }
+
+    // Only vibrate when indicator is fully slid to the end (1.0 or 0.0)
+    if (_controller.value >= 1.0) {
+      _triggerHapticIfFullySlid(true);
+    } else if (_controller.value <= 0.0) {
+      _triggerHapticIfFullySlid(false);
+    } else if (_controller.value > 0.05 && _controller.value < 0.95) {
+      _lastVibratedEnd = null;
     }
   }
 
   void _handleDragEnd(DragEndDetails details) {
     if (!widget.enabled) return;
     final velocity = details.primaryVelocity ?? 0.0;
-    bool target;
-    if (velocity.abs() > 300.0) {
-      target = velocity > 0;
-    } else {
-      target = _controller.value >= 0.5;
-    }
-
-    if (target != _dragIsOn) {
-      _dragIsOn = target;
-      if (widget.enableFeedback) {
-        HapticFeedback.lightImpact();
-      }
-    }
+    final bool target = velocity.abs() > 300.0
+        ? velocity > 0
+        : _controller.value >= 0.5;
 
     if (target != widget.value) {
       widget.onChanged!(target);
@@ -294,17 +300,19 @@ class _NixSwitchState extends State<NixSwitch>
                       padding: const EdgeInsets.all(padding),
                       child: Align(
                         alignment: alignmentAnimation.value,
-                        child: Container(
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 140),
+                          curve: Curves.easeOutCubic,
                           width: thumbWidth,
                           height: thumbHeight,
                           decoration: ShapeDecoration(
                             color: displayThumbColor,
                             shape: NixGeometry.stadiumBorder,
-                            shadows: [
+                            shadows: const [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
+                                color: Color(0x26000000),
                                 blurRadius: 2,
-                                offset: const Offset(0, 1),
+                                offset: Offset(0, 1),
                               ),
                             ],
                           ),

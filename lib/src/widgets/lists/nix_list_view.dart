@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -63,13 +64,17 @@ class NixListView extends StatefulWidget {
     this.reorderTrigger = NixReorderTrigger.both,
     this.buildDefaultDragHandles = true,
     this.enableContainer = true,
+    this.enableInnerClipping = true,
+    this.innerClipBorderRadius,
+    this.clipBehavior = Clip.antiAlias,
     this.containerColor,
     this.containerBorderRadius = const BorderRadius.all(
       Radius.circular(NixListPhysics.containerRadius),
     ),
     this.containerBorder,
     this.containerPadding = const EdgeInsets.all(4.0),
-    this.itemSpacing = 2.0,
+    this.gap,
+    this.itemSpacing = NixListPhysics.itemGap,
     this.enableNeighbourSquish = true,
     this.selectionMode = NixSelectionMode.none,
     this.selectedIndices,
@@ -81,9 +86,9 @@ class NixListView extends StatefulWidget {
     this.dropTargetColor,
     this.dropTargetBorder,
     this.dropTargetBorderRadius,
-  })  : itemCount = null,
-        itemBuilder = null,
-        separatorBuilder = null;
+  }) : itemCount = null,
+       itemBuilder = null,
+       separatorBuilder = null;
 
   /// Creates a lazily-built [NixListView] using an [itemBuilder].
   const NixListView.builder({
@@ -101,13 +106,17 @@ class NixListView extends StatefulWidget {
     this.reorderTrigger = NixReorderTrigger.both,
     this.buildDefaultDragHandles = true,
     this.enableContainer = true,
+    this.enableInnerClipping = true,
+    this.innerClipBorderRadius,
+    this.clipBehavior = Clip.antiAlias,
     this.containerColor,
     this.containerBorderRadius = const BorderRadius.all(
       Radius.circular(NixListPhysics.containerRadius),
     ),
     this.containerBorder,
     this.containerPadding = const EdgeInsets.all(4.0),
-    this.itemSpacing = 2.0,
+    this.gap,
+    this.itemSpacing = NixListPhysics.itemGap,
     this.enableNeighbourSquish = true,
     this.selectionMode = NixSelectionMode.none,
     this.selectedIndices,
@@ -119,15 +128,16 @@ class NixListView extends StatefulWidget {
     this.dropTargetColor,
     this.dropTargetBorder,
     this.dropTargetBorderRadius,
-  })  : children = null,
-        separatorBuilder = null;
+  }) : children = null,
+       separatorBuilder = null;
 
   /// Creates a separated [NixListView] using an [itemBuilder] and [separatorBuilder].
   const NixListView.separated({
     super.key,
     required int this.itemCount,
     required Widget Function(BuildContext context, int index) this.itemBuilder,
-    required Widget Function(BuildContext context, int index) this.separatorBuilder,
+    required Widget Function(BuildContext context, int index)
+    this.separatorBuilder,
     this.controller,
     this.scrollDirection = Axis.vertical,
     this.physics,
@@ -139,13 +149,17 @@ class NixListView extends StatefulWidget {
     this.reorderTrigger = NixReorderTrigger.both,
     this.buildDefaultDragHandles = true,
     this.enableContainer = true,
+    this.enableInnerClipping = true,
+    this.innerClipBorderRadius,
+    this.clipBehavior = Clip.antiAlias,
     this.containerColor,
     this.containerBorderRadius = const BorderRadius.all(
       Radius.circular(NixListPhysics.containerRadius),
     ),
     this.containerBorder,
     this.containerPadding = const EdgeInsets.all(4.0),
-    this.itemSpacing = 2.0,
+    this.gap,
+    this.itemSpacing = NixListPhysics.itemGap,
     this.enableNeighbourSquish = true,
     this.selectionMode = NixSelectionMode.none,
     this.selectedIndices,
@@ -228,8 +242,34 @@ class NixListView extends StatefulWidget {
   /// Inner padding inside the container surrounding the items. Defaults to 4px.
   final EdgeInsetsGeometry containerPadding;
 
-  /// Spacing between adjacent list items. Defaults to 2px.
+  /// Whether to clip the inner list to the container's rounded corner bounds.
+  ///
+  /// Defaults to `true`. When set to `false`, inner [ClipRRect] clipping is disabled,
+  /// allowing child shadows, custom elevations, or borders to render without being clipped.
+  final bool enableInnerClipping;
+
+  /// Optional custom border radius for inner clipping.
+  ///
+  /// If null and [enableInnerClipping] is true, automatically derives from
+  /// [containerBorderRadius] reduced by the container padding inset.
+  final BorderRadius? innerClipBorderRadius;
+
+  /// The clip behavior applied when [enableInnerClipping] is true.
+  ///
+  /// Defaults to [Clip.antiAlias]. Setting this to [Clip.none] or setting
+  /// [enableInnerClipping] to `false` disables inner clipping.
+  final Clip clipBehavior;
+
+  /// Optional spacing/gap between adjacent list items. Defaults to 2px ([NixListPhysics.itemGap]).
+  ///
+  /// Can be specified via [gap] or [itemSpacing].
+  final double? gap;
+
+  /// Spacing between adjacent list items. Defaults to 2px ([NixListPhysics.itemGap]).
   final double itemSpacing;
+
+  /// Effective spacing/gap between adjacent list items.
+  double get effectiveItemSpacing => gap ?? itemSpacing;
 
   /// Whether adjacent items dynamically squish and displace during drag/swipe gestures.
   final bool enableNeighbourSquish;
@@ -412,7 +452,7 @@ class _NixListViewState extends State<NixListView>
       event: event,
       recognizer: isImmediate
           ? (ImmediateMultiDragGestureRecognizer(debugOwner: this)
-            ..gestureSettings = settings)
+              ..gestureSettings = settings)
           : (DelayedMultiDragGestureRecognizer(
               delay: const Duration(milliseconds: 200),
               debugOwner: this,
@@ -437,7 +477,7 @@ class _NixListViewState extends State<NixListView>
       }
     }
     const defaultHeight = 60.0;
-    return index * (defaultHeight + widget.itemSpacing);
+    return index * (defaultHeight + widget.effectiveItemSpacing);
   }
 
   double _measureItemHeight(int index) {
@@ -505,8 +545,10 @@ class _NixListViewState extends State<NixListView>
     if (_draggedIndex == null || _settleController.isAnimating) return;
 
     final newOffsetY = _dragOffsetY + details.delta.dy;
-    final newOffsetX =
-        (_dragOffsetX + details.delta.dx * 0.4).clamp(-28.0, 28.0);
+    final newOffsetX = (_dragOffsetX + details.delta.dx * 0.4).clamp(
+      -28.0,
+      28.0,
+    );
 
     // Current center of the floating dragged card
     final currentDraggedCenter =
@@ -557,21 +599,17 @@ class _NixListViewState extends State<NixListView>
     }
     final targetOffsetY = targetTop - _draggedInitialTop;
 
-    _settleAnimation = Tween<double>(
-      begin: _dragOffsetY,
-      end: targetOffsetY,
-    ).animate(CurvedAnimation(
-      parent: _settleController,
-      curve: Curves.easeOutCubic,
-    ));
+    _settleAnimation = Tween<double>(begin: _dragOffsetY, end: targetOffsetY)
+        .animate(
+          CurvedAnimation(
+            parent: _settleController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
 
-    _settleXAnimation = Tween<double>(
-      begin: _dragOffsetX,
-      end: 0.0,
-    ).animate(CurvedAnimation(
-      parent: _settleController,
-      curve: Curves.easeOutCubic,
-    ));
+    _settleXAnimation = Tween<double>(begin: _dragOffsetX, end: 0.0).animate(
+      CurvedAnimation(parent: _settleController, curve: Curves.easeOutCubic),
+    );
 
     _settleController.forward(from: 0.0).then((_) {
       if (!mounted) return;
@@ -695,8 +733,10 @@ class _NixListViewState extends State<NixListView>
   Widget _buildScopedChild(BuildContext context, int index) {
     final rawChild = _getRawChild(context, index);
     final itemKey = _getItemKey(index);
-    final measurementKey =
-        _measurementKeys.putIfAbsent(itemKey, () => GlobalKey());
+    final measurementKey = _measurementKeys.putIfAbsent(
+      itemKey,
+      () => GlobalKey(),
+    );
 
     final theme = Theme.of(context);
     final nixTheme = NixThemeData.of(context);
@@ -713,13 +753,15 @@ class _NixListViewState extends State<NixListView>
     final prevDetached = _isDetached(index - 1);
     final nextDetached = _isDetached(index + 1);
 
-    final prevSameState = isSelected
-        ? _isChildSelected(index - 1)
-        : (isPlaying ? _isChildPlaying(index - 1) : !_isDetached(index - 1));
+    final isCurrentActive = isSelected || isPlaying;
 
-    final nextSameState = isSelected
-        ? _isChildSelected(index + 1)
-        : (isPlaying ? _isChildPlaying(index + 1) : !_isDetached(index + 1));
+    final prevSameState = isCurrentActive
+        ? (_isChildSelected(index - 1) || _isChildPlaying(index - 1))
+        : !_isDetached(index - 1);
+
+    final nextSameState = isCurrentActive
+        ? (_isChildSelected(index + 1) || _isChildPlaying(index + 1))
+        : !_isDetached(index + 1);
 
     // Calculate slot shift during reorder (Reorder opens slots cleanly)
     double slotShiftFraction = 0.0;
@@ -729,12 +771,13 @@ class _NixListViewState extends State<NixListView>
 
       final double currentItemHeight =
           (_restingSlotHeights.isNotEmpty && index < _restingSlotHeights.length)
-              ? _restingSlotHeights[index]
-              : _measureItemHeight(index);
+          ? _restingSlotHeights[index]
+          : _measureItemHeight(index);
 
-      final double step = (_draggedHeight + widget.itemSpacing);
-      final double fractionStep =
-          currentItemHeight > 0 ? (step / currentItemHeight) : 1.0;
+      final double step = (_draggedHeight + widget.effectiveItemSpacing);
+      final double fractionStep = currentItemHeight > 0
+          ? (step / currentItemHeight)
+          : 1.0;
 
       if (isDragged) {
         if (_restingSlotTops.length > to && _restingSlotTops.length > from) {
@@ -757,12 +800,14 @@ class _NixListViewState extends State<NixListView>
 
     Widget childContent = rawChild;
     if (isDragged) {
-      final effectiveDropTargetColor = widget.dropTargetColor ??
+      final effectiveDropTargetColor =
+          widget.dropTargetColor ??
           (nixTheme.primary ?? colors.primary).withValues(alpha: 0.14);
 
       final effectiveDropTargetBorder = widget.dropTargetBorder;
 
-      final effectiveDropTargetRadius = widget.dropTargetBorderRadius ??
+      final effectiveDropTargetRadius =
+          widget.dropTargetBorderRadius ??
           NixListPhysics.computeSegmentedRadius(
             index: targetSlot ?? index,
             totalCount: widget.effectiveItemCount,
@@ -789,22 +834,26 @@ class _NixListViewState extends State<NixListView>
     final bool itemCanReorder =
         (rawChild is! NixListItem || rawChild.canReorder) &&
         !isActionOpenForThisItem;
-    final isReorderDisabled = !widget.reorderable ||
+    final isReorderDisabled =
+        !widget.reorderable ||
         widget.onReorder == null ||
         isSelectMode ||
         effectiveTrigger == NixReorderTrigger.disabled ||
         !itemCanReorder ||
         _actionOpenIndices.isNotEmpty;
 
-    final canReorderHandle = !isReorderDisabled &&
+    final canReorderHandle =
+        !isReorderDisabled &&
         (effectiveTrigger == NixReorderTrigger.handleOnly ||
             effectiveTrigger == NixReorderTrigger.both);
-    final canReorderWholeItem = !isReorderDisabled &&
+    final canReorderWholeItem =
+        !isReorderDisabled &&
         widget.canReorderOnLongPress &&
         (effectiveTrigger == NixReorderTrigger.wholeItem ||
             effectiveTrigger == NixReorderTrigger.both);
 
-    final shouldWrapDelayed = widget.reorderable &&
+    final shouldWrapDelayed =
+        widget.reorderable &&
         widget.canReorderOnLongPress &&
         (widget.reorderTrigger == NixReorderTrigger.both ||
             widget.reorderTrigger == NixReorderTrigger.wholeItem);
@@ -865,18 +914,15 @@ class _NixListViewState extends State<NixListView>
     );
 
     // Wrap with padding spacing between items
-    if (widget.itemSpacing > 0 && index < widget.effectiveItemCount - 1) {
+    if (widget.effectiveItemSpacing > 0 && index < widget.effectiveItemCount - 1) {
       item = Padding(
-        padding: EdgeInsets.only(bottom: widget.itemSpacing),
+        padding: EdgeInsets.only(bottom: widget.effectiveItemSpacing),
         child: item,
       );
     }
 
     // Outer KeyedSubtree preserves item state and element identity across reorders
-    return KeyedSubtree(
-      key: itemKey,
-      child: item,
-    );
+    return KeyedSubtree(key: itemKey, child: item);
   }
 
   Widget _buildFloatingDraggedCard(BuildContext context) {
@@ -885,12 +931,11 @@ class _NixListViewState extends State<NixListView>
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final rawChild = _getRawChild(context, _draggedIndex!);
-    final resolvedPadding =
-        widget.containerPadding.resolve(Directionality.maybeOf(context));
-    final leftOffset =
-        widget.enableContainer ? resolvedPadding.left : 0.0;
-    final rightOffset =
-        widget.enableContainer ? resolvedPadding.right : 0.0;
+    final resolvedPadding = widget.containerPadding.resolve(
+      Directionality.maybeOf(context),
+    );
+    final leftOffset = widget.enableContainer ? resolvedPadding.left : 0.0;
+    final rightOffset = widget.enableContainer ? resolvedPadding.right : 0.0;
 
     return Positioned(
       top: _draggedInitialTop + _dragOffsetY,
@@ -929,7 +974,8 @@ class _NixListViewState extends State<NixListView>
                 child: NixListScope(
                   index: _draggedIndex!,
                   totalCount: widget.effectiveItemCount,
-                  isSelected: widget.selectionMode != NixSelectionMode.none &&
+                  isSelected:
+                      widget.selectionMode != NixSelectionMode.none &&
                       _internalSelected.contains(_draggedIndex!),
                   isSelectable: widget.selectionMode != NixSelectionMode.none,
                   isPlaying: widget.playingIndex == _draggedIndex!,
@@ -976,23 +1022,62 @@ class _NixListViewState extends State<NixListView>
     final nixTheme = NixThemeData.of(context);
     final colors = theme.colorScheme;
 
-    Widget listView = ListView.builder(
-      controller: widget.controller,
-      scrollDirection: widget.scrollDirection,
-      physics: _draggedIndex != null
-          ? const NeverScrollableScrollPhysics()
-          : widget.physics,
-      padding: EdgeInsets.zero,
-      shrinkWrap: widget.shrinkWrap,
-      itemCount: widget.effectiveItemCount,
-      itemBuilder: _buildScopedChild,
-    );
+    final bool isNonScrollable =
+        widget.shrinkWrap && widget.physics is NeverScrollableScrollPhysics;
+
+    Widget listView = isNonScrollable
+        ? (widget.scrollDirection == Axis.vertical
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: List<Widget>.generate(
+                    widget.effectiveItemCount,
+                    (index) => _buildScopedChild(context, index),
+                  ),
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List<Widget>.generate(
+                    widget.effectiveItemCount,
+                    (index) => _buildScopedChild(context, index),
+                  ),
+                ))
+        : ListView.builder(
+            controller: widget.controller,
+            scrollDirection: widget.scrollDirection,
+            physics: _draggedIndex != null
+                ? const NeverScrollableScrollPhysics()
+                : widget.physics,
+            padding: EdgeInsets.zero,
+            shrinkWrap: widget.shrinkWrap,
+            itemCount: widget.effectiveItemCount,
+            itemBuilder: _buildScopedChild,
+          );
 
     // Outer segmented container
     Widget listContent = listView;
     if (widget.enableContainer) {
-      final effectiveContainerColor = widget.containerColor ??
+      final effectiveContainerColor =
+          widget.containerColor ??
           (nixTheme.surfaceContainer ?? colors.surfaceContainer);
+
+      final bool shouldClip =
+          widget.enableInnerClipping && widget.clipBehavior != Clip.none;
+
+      final effectiveInnerClipRadius = widget.innerClipBorderRadius ??
+          BorderRadius.all(
+            Radius.circular(
+              math.max(0.0, widget.containerBorderRadius.topLeft.x - 2.5),
+            ),
+          );
+
+      final Widget innerContent = shouldClip
+          ? ClipRRect(
+              clipBehavior: widget.clipBehavior,
+              borderRadius: effectiveInnerClipRadius,
+              child: listView,
+            )
+          : listView;
 
       listContent = Container(
         padding: widget.containerPadding,
@@ -1001,14 +1086,7 @@ class _NixListViewState extends State<NixListView>
           borderRadius: widget.containerBorderRadius,
           border: widget.containerBorder,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.all(
-            Radius.circular(
-              math.max(0.0, widget.containerBorderRadius.topLeft.x - 2.0),
-            ),
-          ),
-          child: listView,
-        ),
+        child: innerContent,
       );
     }
 
@@ -1025,10 +1103,7 @@ class _NixListViewState extends State<NixListView>
 
     // Apply outer list padding
     if (widget.padding != EdgeInsets.zero) {
-      listContent = Padding(
-        padding: widget.padding,
-        child: listContent,
-      );
+      listContent = Padding(padding: widget.padding, child: listContent);
     }
 
     return listContent;

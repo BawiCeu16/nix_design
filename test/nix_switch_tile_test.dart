@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nix_design/nix_design.dart';
 
@@ -301,7 +302,7 @@ void main() {
   });
 
   group('NixSwitchList - Container & Builder', () {
-    testWidgets('Outer container has 16px radius, 4px padding, 2px item spacing', (tester) async {
+    testWidgets('Outer container has containerRadius (20px), 4px padding, 2px item spacing', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -323,7 +324,12 @@ void main() {
         ).first,
       );
       final containerDecoration = decoratedBox.decoration as BoxDecoration;
-      expect(containerDecoration.borderRadius, equals(const BorderRadius.all(Radius.circular(16.0))));
+      expect(
+        containerDecoration.borderRadius,
+        equals(
+          const BorderRadius.all(Radius.circular(NixListPhysics.containerRadius)),
+        ),
+      );
 
       // Item spacing SizedBox
       expect(find.byWidgetPredicate((widget) => widget is SizedBox && widget.height == 2.0), findsOneWidget);
@@ -407,6 +413,58 @@ void main() {
       final radius0 = (container0.decoration as BoxDecoration).borderRadius as BorderRadius;
       expect(radius0.topLeft.x, equals(12.0));
       expect(radius0.bottomLeft.x, equals(6.0));
+    });
+
+    testWidgets('Tapping switch tile triggers exactly one vibration when fully slid (no double vibrate)', (tester) async {
+      final List<String> hapticCalls = [];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'HapticFeedback.vibrate') {
+            hapticCalls.add(methodCall.arguments as String);
+          }
+          return null;
+        },
+      );
+
+      bool val = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                return NixSwitchTile(
+                  title: const Text('Haptic Check'),
+                  value: val,
+                  onChanged: (newVal) => setState(() => val = newVal),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(hapticCalls.isEmpty, isTrue);
+
+      // Tap on tile title
+      await tester.tap(find.text('Haptic Check'));
+      await tester.pump();
+
+      // At initial tap, NO vibration yet (vibration fires when fully slid)
+      expect(hapticCalls.isEmpty, isTrue);
+
+      // Settle the animation
+      await tester.pumpAndSettle();
+
+      // Exactly ONE vibration triggered on fully slid
+      expect(hapticCalls.length, equals(1));
+      expect(hapticCalls.first, equals('HapticFeedbackType.lightImpact'));
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
     });
   });
 }

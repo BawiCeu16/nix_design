@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../theme/nix_geometry.dart';
 import '../../theme/nix_theme_data.dart';
@@ -221,9 +220,6 @@ class NixSwitchTile extends StatelessWidget {
 
   void _handleTap() {
     if (!isInteractive) return;
-    if (enableFeedback) {
-      HapticFeedback.lightImpact();
-    }
     onChanged!(!value);
     onTap?.call();
   }
@@ -455,7 +451,8 @@ class NixSwitchList extends StatelessWidget {
     this.containerBorderRadius,
     this.containerBorder,
     this.containerPadding = const EdgeInsets.all(4.0),
-    this.itemSpacing = 2.0,
+    this.gap,
+    this.itemSpacing = NixListPhysics.itemGap,
     this.scrollDirection = Axis.vertical,
     this.shrinkWrap = true,
     this.physics,
@@ -474,7 +471,8 @@ class NixSwitchList extends StatelessWidget {
     this.containerBorderRadius,
     this.containerBorder,
     this.containerPadding = const EdgeInsets.all(4.0),
-    this.itemSpacing = 2.0,
+    this.gap,
+    this.itemSpacing = NixListPhysics.itemGap,
     this.scrollDirection = Axis.vertical,
     this.shrinkWrap = true,
     this.physics,
@@ -509,8 +507,14 @@ class NixSwitchList extends StatelessWidget {
   /// Padding inside the container around all tiles. Defaults to `EdgeInsets.all(4.0)`.
   final EdgeInsetsGeometry containerPadding;
 
+  /// Optional spacing/gap between adjacent tiles. Defaults to 2px ([NixListPhysics.itemGap]).
+  final double? gap;
+
   /// Vertical spacing between adjacent tiles. Defaults to `2.0px`.
   final double itemSpacing;
+
+  /// Effective spacing between adjacent tiles.
+  double get effectiveItemSpacing => gap ?? itemSpacing;
 
   /// Scroll direction of the list. Defaults to [Axis.vertical].
   final Axis scrollDirection;
@@ -554,7 +558,8 @@ class NixSwitchList extends StatelessWidget {
         children: [
           for (int i = 0; i < total; i++) ...[
             buildTile(i),
-            if (i < total - 1 && itemSpacing > 0) SizedBox(height: itemSpacing),
+            if (i < total - 1 && effectiveItemSpacing > 0)
+              SizedBox(height: effectiveItemSpacing),
           ],
         ],
       );
@@ -565,7 +570,8 @@ class NixSwitchList extends StatelessWidget {
         shrinkWrap: shrinkWrap,
         scrollDirection: scrollDirection,
         itemCount: total,
-        separatorBuilder: (context, index) => SizedBox(height: itemSpacing),
+        separatorBuilder: (context, index) =>
+            SizedBox(height: effectiveItemSpacing),
         itemBuilder: (context, index) => buildTile(index),
       );
     }
